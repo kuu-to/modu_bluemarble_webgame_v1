@@ -1,0 +1,6 @@
+{
+  "name": "모두의 부루마블 (Modu BlueMarble)",
+  "description": "모두의마블 스타일의 화려하고 세련된 부루마블 웹 보드게임. 2인/3인/4인 플레이 모드 및 AI 대전 지원, 입체 건물 건설, 통행료 징수 및 인수, 황금열쇠, 실시간 랭킹 시스템 완벽 탑재",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
