@@ -72,9 +72,89 @@ export interface GameLogEntry {
 
 export type HumanCountOption = 2 | 3 | 4;
 
+export type GameSpeed = 'slow' | 'normal' | 'fast';
+
+export interface GameSpeedSettings {
+  stepIntervalMs: number; // Token hop interval per tile
+  arrivalPauseMs: number; // Delay between landing on tile and modal/action popping up
+  aiThinkDelayMs: number; // AI wait before rolling
+  aiActionDelayMs: number; // AI decision delay before buying / paying toll
+  modalActionDelayMs: number; // Action display delay (after purchase, toll, tax, pass) before next turn
+  bannerDurationMs: number; // Turn banner display time
+  diceRollTicks: number; // Dice tumbling count
+  diceRollIntervalMs: number; // Dice tumbling tick rate
+}
+
+export const SPEED_CONFIGS: Record<GameSpeed, GameSpeedSettings> = {
+  slow: {
+    stepIntervalMs: 320,
+    arrivalPauseMs: 2500,
+    aiThinkDelayMs: 3200,
+    aiActionDelayMs: 2000,
+    modalActionDelayMs: 5000,
+    bannerDurationMs: 2800,
+    diceRollTicks: 12,
+    diceRollIntervalMs: 85
+  },
+  normal: {
+    stepIntervalMs: 220,
+    arrivalPauseMs: 1800,
+    aiThinkDelayMs: 2200,
+    aiActionDelayMs: 1500,
+    modalActionDelayMs: 3600,
+    bannerDurationMs: 2200,
+    diceRollTicks: 8,
+    diceRollIntervalMs: 65
+  },
+  fast: {
+    stepIntervalMs: 140,
+    arrivalPauseMs: 1000,
+    aiThinkDelayMs: 1200,
+    aiActionDelayMs: 800,
+    modalActionDelayMs: 2000,
+    bannerDurationMs: 1400,
+    diceRollTicks: 6,
+    diceRollIntervalMs: 50
+  }
+};
+
 export interface GameModeConfig {
   humanCount: HumanCountOption; // 2인, 3인, 4인 (인간 플레이어 수)
   aiCount: number; // 2인의 경우 0~2명, 3인의 경우 0~1명, 4인의 경우 0명
+  speed?: GameSpeed; // 게임 진행 속도 ('slow' | 'normal' | 'fast')
+}
+
+export type BroadcastCategory = 
+  | 'start'
+  | 'turn'
+  | 'roll' 
+  | 'arrive' 
+  | 'purchase' 
+  | 'pass' 
+  | 'toll_due' 
+  | 'toll_paid' 
+  | 'takeover' 
+  | 'golden_key' 
+  | 'space_travel' 
+  | 'island' 
+  | 'salary' 
+  | 'tax' 
+  | 'fund' 
+  | 'bankrupt';
+
+export interface BoardBroadcastMessage {
+  id: string;
+  category: BroadcastCategory;
+  playerId: number;
+  playerName: string;
+  playerColor: string;
+  isAI: boolean;
+  title: string;
+  detail: string;
+  badge?: string;
+  badgeColor?: 'emerald' | 'amber' | 'rose' | 'sky' | 'indigo' | 'purple' | 'slate';
+  icon?: string;
+  timestamp?: number;
 }
 
 export type GameStatus = 'idle' | 'rolling' | 'moving' | 'action_modal' | 'game_over';

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { HumanCountOption, GameModeConfig } from '../types';
+import { HumanCountOption, GameModeConfig, GameSpeed } from '../types';
 import { PLAYER_PRESETS } from '../utils/playerPresets';
-import { Users, Bot, UserCheck, Play, Sparkles, Trophy, Globe, Shield } from 'lucide-react';
+import { Users, Bot, UserCheck, Play, Sparkles, Trophy, Globe, Shield, Gauge, Zap, Clock, FastForward } from 'lucide-react';
 
 interface GameSetupScreenProps {
   onStartGame: (config: GameModeConfig, playerNames: string[]) => void;
@@ -11,6 +11,7 @@ interface GameSetupScreenProps {
 export const GameSetupScreen: React.FC<GameSetupScreenProps> = ({ onStartGame }) => {
   const [humanCount, setHumanCount] = useState<HumanCountOption>(2);
   const [aiCount, setAiCount] = useState<number>(0);
+  const [speed, setSpeed] = useState<GameSpeed>('normal'); // Default to normal for comfortable play
   
   // Custom names for players 1..4 (human and AI)
   const [playerNames, setPlayerNames] = useState<Record<number, string>>({});
@@ -49,7 +50,7 @@ export const GameSetupScreen: React.FC<GameSetupScreenProps> = ({ onStartGame })
     }
 
     onStartGame(
-      { humanCount, aiCount },
+      { humanCount, aiCount, speed },
       resolvedNames
     );
   };
@@ -282,6 +283,81 @@ export const GameSetupScreen: React.FC<GameSetupScreenProps> = ({ onStartGame })
                       />
                     </div>
                   </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Step 4: Game Speed Selection */}
+          <div>
+            <label className="text-xs sm:text-sm font-bold text-slate-200 uppercase tracking-wider mb-2.5 flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-purple-400">
+                <Gauge className="w-4 h-4" />
+                4단계: 게임 진행 속도 설정
+              </span>
+              <span className="text-xs text-purple-300 font-semibold">
+                {speed === 'slow' ? '🐢 느림 (여유로운 관전)' : speed === 'normal' ? '🚶 보통 (쾌적한 권장 템포)' : '⚡ 빠르게 (스피드 대결)'}
+              </span>
+            </label>
+
+            <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+              {[
+                {
+                  id: 'slow' as GameSpeed,
+                  label: '느림',
+                  tag: '여유롭게',
+                  icon: Clock,
+                  desc: '말 이동 320ms, AI 턴 2.2초 대기\n초보 및 상황 관전 추천',
+                  color: 'from-amber-500/20 to-orange-500/10 border-amber-500/40 text-amber-300'
+                },
+                {
+                  id: 'normal' as GameSpeed,
+                  label: '보통',
+                  tag: '추천 기본값',
+                  icon: Gauge,
+                  desc: '말 이동 220ms, AI 턴 1.5초 대기\n자연스럽고 쾌적한 템포',
+                  color: 'from-emerald-500/20 to-teal-500/10 border-emerald-400 text-emerald-300'
+                },
+                {
+                  id: 'fast' as GameSpeed,
+                  label: '빠르게',
+                  tag: '스피드 대결',
+                  icon: FastForward,
+                  desc: '말 이동 130ms, AI 턴 0.8초 대기\n기다림 없이 빠른 전개',
+                  color: 'from-cyan-500/20 to-blue-500/10 border-cyan-400 text-cyan-300'
+                }
+              ].map((opt) => {
+                const isSelected = speed === opt.id;
+                const IconComponent = opt.icon;
+
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setSpeed(opt.id)}
+                    className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-between ${
+                      isSelected
+                        ? `bg-gradient-to-b ${opt.color} shadow-[0_0_18px_rgba(168,85,247,0.3)] ring-1 ring-white/30 scale-[1.02]`
+                        : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-bold text-sm sm:text-base">
+                      <IconComponent className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
+                      <span className={isSelected ? 'text-white font-extrabold' : ''}>{opt.label}</span>
+                    </div>
+
+                    <div className="my-1">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${
+                        isSelected ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
+                      }`}>
+                        {opt.tag}
+                      </span>
+                    </div>
+
+                    <div className="text-[10.5px] text-slate-400 leading-tight whitespace-pre-line mt-1">
+                      {opt.desc}
+                    </div>
+                  </button>
                 );
               })}
             </div>

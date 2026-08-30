@@ -283,6 +283,13 @@ export const TileCell: React.FC<TileCellProps> = ({
           })}
         </div>
       )}
+
+      {/* 도착 타일 표시 뱃지 (Highlight Marker) */}
+      {highlighted && (
+        <div className="absolute top-0 inset-x-0 bg-amber-400 text-slate-950 text-[7px] sm:text-[8px] font-black text-center py-0.2 tracking-tighter shadow-md z-40 animate-pulse border-b border-amber-600">
+          📍 도착
+        </div>
+      )}
     </div>
   );
 };

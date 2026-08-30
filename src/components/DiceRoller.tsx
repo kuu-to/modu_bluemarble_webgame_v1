@@ -1,54 +1,30 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Dices, Sparkles, Zap } from 'lucide-react';
-import { soundManager } from '../utils/audio';
+import { GameSpeed } from '../types';
 
 interface DiceRollerProps {
-  onRoll: (d1: number, d2: number) => void;
+  onRoll: () => void;
   isRolling: boolean;
+  isTumbling: boolean;
   disabled: boolean;
   currentTurnPlayerName: string;
   isAI: boolean;
-  lastDice: [number, number] | null;
+  currentDice: [number, number];
   isDouble: boolean;
+  gameSpeed?: GameSpeed;
 }
 
 export const DiceRoller: React.FC<DiceRollerProps> = ({
   onRoll,
   isRolling,
+  isTumbling,
   disabled,
   currentTurnPlayerName,
   isAI,
-  lastDice,
+  currentDice,
   isDouble
 }) => {
-  const [animDice, setAnimDice] = useState<[number, number]>([1, 1]);
-
-  const triggerRoll = () => {
-    if (disabled || isRolling) return;
-
-    soundManager.playDiceRoll();
-
-    // Roll random numbers
-    const d1 = Math.floor(Math.random() * 6) + 1;
-    const d2 = Math.floor(Math.random() * 6) + 1;
-
-    // Simulate tumbling dice ticks
-    let count = 0;
-    const interval = setInterval(() => {
-      setAnimDice([
-        Math.floor(Math.random() * 6) + 1,
-        Math.floor(Math.random() * 6) + 1
-      ]);
-      count++;
-      if (count > 8) {
-        clearInterval(interval);
-        setAnimDice([d1, d2]);
-        onRoll(d1, d2);
-      }
-    }, 70);
-  };
-
   const renderDiceFace = (val: number) => {
     const dotPositions: Record<number, number[]> = {
       1: [4],
@@ -62,7 +38,7 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
     const activeDots = dotPositions[val] || [4];
 
     return (
-      <div className="grid grid-cols-3 grid-rows-3 w-10 h-10 sm:w-12 sm:h-12 p-1.5 bg-gradient-to-br from-white via-slate-50 to-slate-200 rounded-xl shadow-[0_6px_15px_rgba(0,0,0,0.4),inset_0_2px_2px_rgba(255,255,255,1)] border-2 border-slate-300">
+      <div className="grid grid-cols-3 grid-rows-3 w-11 h-11 sm:w-13 sm:h-13 p-1.5 bg-gradient-to-br from-white via-slate-50 to-slate-200 rounded-xl shadow-[0_6px_16px_rgba(0,0,0,0.45),inset_0_2px_2px_rgba(255,255,255,1)] border-2 border-slate-300">
         {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((idx) => (
           <div key={idx} className="flex items-center justify-center">
             {activeDots.includes(idx) && (
@@ -78,8 +54,7 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
     );
   };
 
-  const displayDice = isRolling ? animDice : lastDice || [3, 4];
-  const diceSum = displayDice[0] + displayDice[1];
+  const diceSum = currentDice[0] + currentDice[1];
 
   return (
     <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-emerald-950/80 backdrop-blur-md border border-emerald-500/40 shadow-xl relative">
@@ -102,26 +77,56 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
       {/* Dice Visual Showcase */}
       <div className="flex items-center justify-center gap-3 sm:gap-4 my-1">
         <motion.div
-          animate={isRolling ? { rotateX: [0, 360, 720], rotateY: [0, 360, 720], scale: [1, 1.2, 1] } : { scale: 1 }}
-          transition={{ duration: 0.6, ease: "easeInOut" }}
+          animate={
+            isTumbling
+              ? {
+                  rotate: [0, 90, 180, 270, 360],
+                  scale: [1, 1.18, 0.92, 1.15, 1],
+                  y: [0, -14, -2, -10, 0]
+                }
+              : { rotate: 0, scale: 1, y: 0 }
+          }
+          transition={
+            isTumbling
+              ? { repeat: Infinity, duration: 0.32, ease: "linear" }
+              : { duration: 0.25, ease: "easeOut" }
+          }
         >
-          {renderDiceFace(displayDice[0])}
+          {renderDiceFace(currentDice[0])}
         </motion.div>
 
         <span className="text-xl font-bold text-emerald-300 font-num">+</span>
 
         <motion.div
-          animate={isRolling ? { rotateX: [0, -360, -720], rotateY: [0, -360, -720], scale: [1, 1.2, 1] } : { scale: 1 }}
-          transition={{ duration: 0.6, ease: "easeInOut" }}
+          animate={
+            isTumbling
+              ? {
+                  rotate: [0, -90, -180, -270, -360],
+                  scale: [1, 1.18, 0.92, 1.15, 1],
+                  y: [0, -10, -14, -4, 0]
+                }
+              : { rotate: 0, scale: 1, y: 0 }
+          }
+          transition={
+            isTumbling
+              ? { repeat: Infinity, duration: 0.32, ease: "linear" }
+              : { duration: 0.25, ease: "easeOut" }
+          }
         >
-          {renderDiceFace(displayDice[1])}
+          {renderDiceFace(currentDice[1])}
         </motion.div>
 
-        <div className="flex flex-col items-center justify-center ml-1">
+        <div className="flex flex-col items-center justify-center ml-1 min-w-[42px]">
           <span className="text-[10px] text-emerald-300 font-bold">합계</span>
-          <span className="text-2xl sm:text-3xl font-black text-amber-400 font-num leading-none drop-shadow-md">
+          <motion.span
+            key={diceSum}
+            initial={{ scale: 1.3, color: '#f59e0b' }}
+            animate={{ scale: 1, color: '#fbbf24' }}
+            transition={{ duration: 0.2 }}
+            className="text-2xl sm:text-3xl font-black text-amber-400 font-num leading-none drop-shadow-md"
+          >
             {diceSum}
-          </span>
+          </motion.span>
         </div>
       </div>
 
@@ -129,13 +134,13 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
       <div className="w-full mt-1.5">
         {isAI ? (
           <div className="w-full py-2.5 px-4 rounded-xl bg-slate-900/80 border border-slate-700 text-center text-slate-300 text-xs font-semibold flex items-center justify-center gap-2">
-            <Zap className="w-4 h-4 text-cyan-400 animate-spin" />
-            <span>{currentTurnPlayerName} (AI) 주사위 생각 중...</span>
+            <Zap className={`w-4 h-4 text-cyan-400 ${isRolling ? 'animate-spin' : ''}`} />
+            <span>{isRolling ? `${currentTurnPlayerName} 주사위 굴리는 중...` : `${currentTurnPlayerName} (AI) 주사위 생각 중...`}</span>
           </div>
         ) : (
           <button
             id="roll-dice-button"
-            onClick={triggerRoll}
+            onClick={onRoll}
             disabled={disabled || isRolling}
             className={`w-full py-2.5 sm:py-3 px-4 rounded-xl font-display text-sm sm:text-base font-black flex items-center justify-center gap-2 transition-all transform duration-150 ${
               disabled || isRolling
@@ -143,8 +148,8 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
                 : 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 shadow-lg shadow-orange-500/30 hover:scale-[1.02] active:scale-[0.98] cursor-pointer border border-yellow-300'
             }`}
           >
-            <Dices className="w-5 h-5 animate-pulse text-slate-950" />
-            <span>{isRolling ? '주사위 굴리는 중...' : '주사위 굴리기 (ROLL)'}</span>
+            <Dices className={`w-5 h-5 ${isRolling ? 'animate-spin' : 'animate-pulse'} text-slate-950`} />
+            <span>{isTumbling ? '주사위 굴리는 중...' : isRolling ? '이동 중...' : '주사위 굴리기 (ROLL)'}</span>
           </button>
         )}
       </div>

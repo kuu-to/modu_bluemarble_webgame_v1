@@ -7,7 +7,10 @@ import {
   GameOverResult,
   GoldenKeyCard, 
   FloatingEffect,
-  SpaceData 
+  SpaceData,
+  GameSpeed,
+  SPEED_CONFIGS,
+  BoardBroadcastMessage
 } from './types';
 import { BOARD_SPACES, calculateToll, calculateSpaceValue } from './data/boardData';
 import { getRandomGoldenKey } from './data/goldenKeyData';
@@ -33,11 +36,15 @@ export default function App() {
   const [gameState, setGameState] = useState<'setup' | 'playing'>('setup');
   const [gameConfig, setGameConfig] = useState<GameModeConfig>({
     humanCount: 2,
-    aiCount: 0
+    aiCount: 0,
+    speed: 'normal'
   });
   const [customNames, setCustomNames] = useState<string[]>(['플레이어 1', '플레이어 2']);
   const [isModeModalOpen, setIsModeModalOpen] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+
+  const currentSpeed: GameSpeed = gameConfig.speed || 'normal';
+  const speedConfig = SPEED_CONFIGS[currentSpeed];
 
   // Initialize Players based on config (Default: Human 2 Players, 0 AI)
   const [players, setPlayers] = useState<Player[]>(() =>
@@ -62,6 +69,8 @@ export default function App() {
   const [socialFund, setSocialFund] = useState<number>(50); // initial fund jackpot
 
   const [isRolling, setIsRolling] = useState<boolean>(false);
+  const [isTumbling, setIsTumbling] = useState<boolean>(false);
+  const [currentDice, setCurrentDice] = useState<[number, number]>([3, 4]);
   const [lastDice, setLastDice] = useState<[number, number] | null>(null);
   const [isDouble, setIsDouble] = useState<boolean>(false);
   const [doubleCount, setDoubleCount] = useState<number>(0);
@@ -69,6 +78,7 @@ export default function App() {
   const [gameLogs, setGameLogs] = useState<GameLogEntry[]>([]);
   const [floatingEffects, setFloatingEffects] = useState<FloatingEffect[]>([]);
   const [turnBannerVisible, setTurnBannerVisible] = useState<boolean>(true);
+  const [boardBroadcast, setBoardBroadcast] = useState<BoardBroadcastMessage | null>(null);
 
   // Active modal controls
   const [activeModal, setActiveModal] = useState<null | 'purchase' | 'toll' | 'golden_key' | 'space_travel' | 'game_over'>(null);
@@ -76,18 +86,38 @@ export default function App() {
   const [currentTollData, setCurrentTollData] = useState<{ space: SpaceData; owner: Player; payer: Player } | null>(null);
   const [gameOverData, setGameOverData] = useState<GameOverResult | null>(null);
 
+  // Trigger Board Broadcast Notification
+  const triggerBroadcast = (msg: Omit<BoardBroadcastMessage, 'id' | 'timestamp'>) => {
+    setBoardBroadcast({
+      ...msg,
+      id: Math.random().toString(),
+      timestamp: Date.now()
+    });
+  };
+
   // Update sound manager toggle
   useEffect(() => {
     soundManager.enabled = soundEnabled;
   }, [soundEnabled]);
 
-  // Initial welcome log
+  // Initial welcome log & board broadcast
   useEffect(() => {
     addLog(0, "🎲 모두의 부루마블 게임이 시작되었습니다! 주사위를 굴려 부를 축적하세요.", "event");
+    triggerBroadcast({
+      category: 'turn',
+      playerId: 0,
+      playerName: players[0]?.name || '플레이어 1',
+      playerColor: players[0]?.color || '#ef4444',
+      isAI: players[0]?.isAI || false,
+      title: '🎮 게임 시작! 주사위를 굴려주세요',
+      detail: '주사위를 굴려 도시를 매입하고 랜드마크를 건설하세요!',
+      badge: '1라운드 시작',
+      badgeColor: 'emerald'
+    });
     setTurnBannerVisible(true);
-    const timer = setTimeout(() => setTurnBannerVisible(false), 2000);
+    const timer = setTimeout(() => setTurnBannerVisible(false), speedConfig.bannerDurationMs);
     return () => clearTimeout(timer);
-  }, []);
+  }, [speedConfig.bannerDurationMs]);
 
   // Trigger floating cash animation
   const showFloatingEffect = (playerId: number, amount: number, isPositive: boolean) => {
@@ -148,7 +178,7 @@ export default function App() {
     if (rolledDouble) {
       soundManager.playTurnSwitch();
       setTurnBannerVisible(true);
-      setTimeout(() => setTurnBannerVisible(false), 1800);
+      setTimeout(() => setTurnBannerVisible(false), speedConfig.bannerDurationMs);
       return;
     }
 
@@ -167,13 +197,29 @@ export default function App() {
       }
       setActivePlayerIndex(nextIdx);
       setTurnCount(prev => prev + 1);
+
+      const nextPlayer = currentPlayers[nextIdx];
+      if (nextPlayer) {
+        triggerBroadcast({
+          category: 'turn',
+          playerId: nextPlayer.id,
+          playerName: nextPlayer.name,
+          playerColor: nextPlayer.color,
+          isAI: nextPlayer.isAI,
+          title: `🏁 [${nextPlayer.name}] 님의 차례입니다`,
+          detail: nextPlayer.isAI ? '컴퓨터 AI가 주사위 굴림 및 부동산 전략을 연산 중입니다...' : '🎲 주사위 굴리기 버튼을 눌러 이동하세요!',
+          badge: nextPlayer.isAI ? 'AI 턴' : '플레이어 턴',
+          badgeColor: nextPlayer.isAI ? 'purple' : 'emerald'
+        });
+      }
+
       return currentPlayers;
     });
 
     // Play turn switch sound & show banner
     soundManager.playTurnSwitch();
     setTurnBannerVisible(true);
-    setTimeout(() => setTurnBannerVisible(false), 1800);
+    setTimeout(() => setTurnBannerVisible(false), speedConfig.bannerDurationMs);
   };
 
   // Check Game Over & Bankruptcy
@@ -181,6 +227,17 @@ export default function App() {
     const updated = playerList.map(p => {
       if (p.money < 0 && !p.isBankrupt) {
         addLog(p.id, `🚨 ${p.name} 보유 자금 고갈로 파산 탈락했습니다!`, 'bankrupt');
+        triggerBroadcast({
+          category: 'bankrupt',
+          playerId: p.id,
+          playerName: p.name,
+          playerColor: p.color,
+          isAI: p.isAI,
+          title: `💥 [${p.name}] 파산 탈락!`,
+          detail: '자금 부족으로 모든 자산이 매각되고 게임에서 탈락했습니다.',
+          badge: '파산 탈락',
+          badgeColor: 'rose'
+        });
         return { ...p, isBankrupt: true };
       }
       return p;
@@ -235,11 +292,22 @@ export default function App() {
     if (space.type === 'island') {
       soundManager.playTollPenalty();
       addLog(player.id, `🏝️ ${player.name}가 무인도에 조난되었습니다! (3턴 격리)`, 'event');
+      triggerBroadcast({
+        category: 'island',
+        playerId: player.id,
+        playerName: player.name,
+        playerColor: player.color,
+        isAI: player.isAI,
+        title: `🏝️ [무인도] 조난 도착!`,
+        detail: `${player.name}님이 무인도에 갇혔습니다. 3턴 동안 탈출을 시도해야 합니다.`,
+        badge: '무인도 3턴',
+        badgeColor: 'indigo'
+      });
       setPlayers(prev => {
         const next = prev.map(p => p.id === player.id ? { ...p, islandTurnsLeft: 3 } : p);
         return updateTotalAssets(next, cells);
       });
-      setTimeout(() => endTurn(isDouble), 800);
+      setTimeout(() => endTurn(isDouble), speedConfig.modalActionDelayMs);
       return;
     }
 
@@ -247,11 +315,22 @@ export default function App() {
     if (space.type === 'space') {
       soundManager.playGoldenKey();
       addLog(player.id, `🛸 ${player.name}가 우주정거장에 도착! 다음 턴 워프 이동이 예약됩니다.`, 'event');
+      triggerBroadcast({
+        category: 'space_travel',
+        playerId: player.id,
+        playerName: player.name,
+        playerColor: player.color,
+        isAI: player.isAI,
+        title: `🛸 [우주정거장 콜롬비아] 도착!`,
+        detail: '우주선 탑승 완료! 다음 턴 원하는 도시로 즉시 순간이동할 수 있습니다.',
+        badge: '워프 예약',
+        badgeColor: 'purple'
+      });
       setPlayers(prev => {
         const next = prev.map(p => p.id === player.id ? { ...p, spaceTravelQueued: true } : p);
         return updateTotalAssets(next, cells);
       });
-      setTimeout(() => endTurn(isDouble), 800);
+      setTimeout(() => endTurn(isDouble), speedConfig.modalActionDelayMs);
       return;
     }
 
@@ -260,6 +339,17 @@ export default function App() {
       if (socialFund > 0) {
         soundManager.playCashGain();
         addLog(player.id, `🏦 사회복지기금 접수처에 도착! 누적된 ${socialFund}만 원 전액을 수령합니다!`, 'event');
+        triggerBroadcast({
+          category: 'fund',
+          playerId: player.id,
+          playerName: player.name,
+          playerColor: player.color,
+          isAI: player.isAI,
+          title: `🏦 [사회복지기금 접수처] 잭팟 수령! (+${socialFund}만 원)`,
+          detail: `누적된 사회복지기금 ${socialFund}만 원 전액을 ${player.name}님이 수령했습니다!`,
+          badge: `잭팟 +${socialFund}만`,
+          badgeColor: 'emerald'
+        });
         showFloatingEffect(player.id, socialFund, true);
         const reward = socialFund;
         setSocialFund(0);
@@ -269,8 +359,19 @@ export default function App() {
         });
       } else {
         addLog(player.id, `🏦 사회복지기금에 도착했습니다. 현재 누적액이 없습니다.`, 'event');
+        triggerBroadcast({
+          category: 'fund',
+          playerId: player.id,
+          playerName: player.name,
+          playerColor: player.color,
+          isAI: player.isAI,
+          title: `🏦 [사회복지기금 접수처] 도착`,
+          detail: '현재 누적된 모금액이 없어 수령할 금액이 0원입니다.',
+          badge: '기금 0원',
+          badgeColor: 'slate'
+        });
       }
-      setTimeout(() => endTurn(isDouble), 800);
+      setTimeout(() => endTurn(isDouble), speedConfig.modalActionDelayMs);
       return;
     }
 
@@ -279,6 +380,17 @@ export default function App() {
       soundManager.playTollPenalty();
       const taxAmount = Math.max(10, Math.floor(player.money * 0.1));
       addLog(player.id, `💰 국세청 세무조사! 자산 비례 세금 ${taxAmount}만 원을 납부합니다.`, 'event');
+      triggerBroadcast({
+        category: 'tax',
+        playerId: player.id,
+        playerName: player.name,
+        playerColor: player.color,
+        isAI: player.isAI,
+        title: `💸 [국세청 세무조사] 세금 납부 (-${taxAmount}만 원)`,
+        detail: `${player.name}님이 자산 비례 세금 ${taxAmount}만 원을 납부했습니다.`,
+        badge: `세금 -${taxAmount}만`,
+        badgeColor: 'rose'
+      });
       showFloatingEffect(player.id, taxAmount, false);
       setSocialFund(prev => prev + taxAmount);
       setPlayers(prev => {
@@ -286,7 +398,7 @@ export default function App() {
         checkGameOver(next);
         return updateTotalAssets(next, cells);
       });
-      setTimeout(() => endTurn(isDouble), 800);
+      setTimeout(() => endTurn(isDouble), speedConfig.modalActionDelayMs);
       return;
     }
 
@@ -296,7 +408,23 @@ export default function App() {
       const keyCard = getRandomGoldenKey();
       setCurrentGoldenKey(keyCard);
       addLog(player.id, `🔑 황금열쇠 찬스 획득! [${keyCard.title}]`, 'golden_key');
+      triggerBroadcast({
+        category: 'golden_key',
+        playerId: player.id,
+        playerName: player.name,
+        playerColor: player.color,
+        isAI: player.isAI,
+        title: `🔑 [황금열쇠 찬스] [${keyCard.title}] 카드 뽑기!`,
+        detail: keyCard.description,
+        badge: '황금열쇠 찬스',
+        badgeColor: 'amber'
+      });
       setActiveModal('golden_key');
+      if (player.isAI) {
+        setTimeout(() => {
+          applyGoldenKey();
+        }, speedConfig.modalActionDelayMs + 1200);
+      }
       return;
     }
 
@@ -308,20 +436,59 @@ export default function App() {
 
       if (isUnowned || (isMine && !cellState.buildings.isLandmark)) {
         // Buy or Upgrade
+        if (isUnowned) {
+          triggerBroadcast({
+            category: 'arrive',
+            playerId: player.id,
+            playerName: player.name,
+            playerColor: player.color,
+            isAI: player.isAI,
+            title: `📍 [${space.name}] 도착! (미보유지)`,
+            detail: `매입가: ${space.price}만 원 | 건물 건설 및 투자 가능`,
+            badge: `매입가 ${space.price}만`,
+            badgeColor: 'emerald'
+          });
+        } else {
+          triggerBroadcast({
+            category: 'arrive',
+            playerId: player.id,
+            playerName: player.name,
+            playerColor: player.color,
+            isAI: player.isAI,
+            title: `🏠 내 소유지 [${space.name}] 도착!`,
+            detail: `현재 통행료: ${cellState.currentToll}만 원 | 추가 건물 및 랜드마크 증축 가능`,
+            badge: '보유 도시',
+            badgeColor: 'sky'
+          });
+        }
+
         if (player.isAI) {
-          const decision = decideAIBuilding(player, space, cellState, player.money);
-          if (decision.totalCost > 0) {
-            const simulatedBuildings = {
-              hasVilla: cellState.buildings.hasVilla || decision.buyVilla,
-              hasBuilding: cellState.buildings.hasBuilding || decision.buyBuilding,
-              hasHotel: cellState.buildings.hasHotel || decision.buyHotel,
-              isLandmark: cellState.buildings.isLandmark || decision.buyLandmark
-            };
-            confirmPurchase(simulatedBuildings, decision.totalCost, player);
-          } else {
-            addLog(player.id, `▶ ${player.name}가 ${space.name} 투자를 보류했습니다.`, 'buy');
-            setTimeout(() => endTurn(isDouble), 600);
-          }
+          setTimeout(() => {
+            const decision = decideAIBuilding(player, space, cellState, player.money);
+            if (decision.totalCost > 0) {
+              const simulatedBuildings = {
+                hasVilla: cellState.buildings.hasVilla || decision.buyVilla,
+                hasBuilding: cellState.buildings.hasBuilding || decision.buyBuilding,
+                hasHotel: cellState.buildings.hasHotel || decision.buyHotel,
+                isLandmark: cellState.buildings.isLandmark || decision.buyLandmark
+              };
+              confirmPurchase(simulatedBuildings, decision.totalCost, player);
+            } else {
+              addLog(player.id, `▶ ${player.name}가 ${space.name} 투자를 보류했습니다.`, 'buy');
+              triggerBroadcast({
+                category: 'pass',
+                playerId: player.id,
+                playerName: player.name,
+                playerColor: player.color,
+                isAI: player.isAI,
+                title: `⏭️ [${space.name}] 투자 보류 (패스)`,
+                detail: `${player.name}님이 자금 전략을 위해 매입을 건너뛰었습니다.`,
+                badge: '투자 보류',
+                badgeColor: 'slate'
+              });
+              setTimeout(() => endTurn(isDouble), speedConfig.modalActionDelayMs);
+            }
+          }, speedConfig.aiActionDelayMs);
         } else {
           setActiveModal('purchase');
         }
@@ -329,36 +496,72 @@ export default function App() {
         // Toll & Takeover
         const opponent = players.find(p => p.id === cellState.owner);
         if (!opponent) {
-          setTimeout(() => endTurn(isDouble), 600);
+          setTimeout(() => endTurn(isDouble), speedConfig.modalActionDelayMs);
           return;
         }
 
         setCurrentTollData({ space, owner: opponent, payer: player });
 
-        if (player.isAI) {
-          const toll = cellState.currentToll;
-          const spaceVal = calculateSpaceValue(space, cellState.buildings);
-          const takeoverCost = spaceVal * 2;
-          const canTakeover = !cellState.buildings.isLandmark && decideAITakeover(player, space, takeoverCost);
+        triggerBroadcast({
+          category: 'toll_due',
+          playerId: player.id,
+          playerName: player.name,
+          playerColor: player.color,
+          isAI: player.isAI,
+          title: `⚠️ [${opponent.name}]의 [${space.name}] 도착! 통행료 발생!`,
+          detail: `지불할 통행료: ${cellState.currentToll}만 원${cellState.buildings.isLandmark ? ' (랜드마크 방어/인수 불가)' : ' | 도시 인수(Takeover) 가능'}`,
+          badge: `통행료 ${cellState.currentToll}만`,
+          badgeColor: 'rose'
+        });
 
-          if (canTakeover && player.money >= (toll + takeoverCost)) {
-            // AI Takeover!
-            executeTakeover(space, opponent, player, toll, takeoverCost);
-          } else {
-            // Pay Toll
-            executePayToll(space, opponent, player, toll);
-          }
+        if (player.isAI) {
+          setTimeout(() => {
+            const toll = cellState.currentToll;
+            const spaceVal = calculateSpaceValue(space, cellState.buildings);
+            const takeoverCost = spaceVal * 2;
+            const canTakeover = !cellState.buildings.isLandmark && decideAITakeover(player, space, takeoverCost);
+
+            if (canTakeover && player.money >= (toll + takeoverCost)) {
+              // AI Takeover!
+              executeTakeover(space, opponent, player, toll, takeoverCost);
+            } else {
+              // Pay Toll
+              executePayToll(space, opponent, player, toll);
+            }
+          }, speedConfig.aiActionDelayMs);
         } else {
           setActiveModal('toll');
         }
       } else {
         // Already fully upgraded Landmark
         addLog(player.id, `👑 ${player.name}의 랜드마크 [${space.name}]에 방문했습니다.`, 'event');
-        setTimeout(() => endTurn(isDouble), 600);
+        triggerBroadcast({
+          category: 'arrive',
+          playerId: player.id,
+          playerName: player.name,
+          playerColor: player.color,
+          isAI: player.isAI,
+          title: `👑 내 최고 랜드마크 [${space.name}] 도착!`,
+          detail: `통행료 ${cellState.currentToll}만 원으로 철벽 방어 중입니다.`,
+          badge: '👑 랜드마크',
+          badgeColor: 'amber'
+        });
+        setTimeout(() => endTurn(isDouble), speedConfig.modalActionDelayMs);
       }
     } else {
       // Start tile
-      setTimeout(() => endTurn(isDouble), 600);
+      triggerBroadcast({
+        category: 'salary',
+        playerId: player.id,
+        playerName: player.name,
+        playerColor: player.color,
+        isAI: player.isAI,
+        title: `🏁 [출발점] 정착: 월급 +${SALARY_AMOUNT}만 원 수령!`,
+        detail: `${player.name}님이 출발점에 안착하여 월급 ${SALARY_AMOUNT}만 원을 지급받았습니다.`,
+        badge: `월급 +${SALARY_AMOUNT}만`,
+        badgeColor: 'emerald'
+      });
+      setTimeout(() => endTurn(isDouble), speedConfig.modalActionDelayMs);
     }
   };
 
@@ -377,6 +580,17 @@ export default function App() {
         soundManager.playCashGain();
         showFloatingEffect(player.id, SALARY_AMOUNT, true);
         addLog(player.id, `🚀 출발점 통과! 월급 +${SALARY_AMOUNT}만 원 지급`, 'event');
+        triggerBroadcast({
+          category: 'salary',
+          playerId: player.id,
+          playerName: player.name,
+          playerColor: player.color,
+          isAI: player.isAI,
+          title: `💰 [출발점 통과] 월급 +${SALARY_AMOUNT}만 원!`,
+          detail: `${player.name}님이 출발점을 경유하여 월급 ${SALARY_AMOUNT}만 원을 지급받았습니다.`,
+          badge: `월급 +${SALARY_AMOUNT}만`,
+          badgeColor: 'emerald'
+        });
         setPlayers(prev => {
           const next = prev.map(p => p.id === player.id ? { ...p, money: p.money + SALARY_AMOUNT } : p);
           return updateTotalAssets(next, cells);
@@ -392,77 +606,163 @@ export default function App() {
         clearInterval(stepInterval);
         setIsRolling(false);
         const finalSpace = BOARD_SPACES[currPos];
-        handleSpaceAction(player, finalSpace);
+        // Comfortable landing pause before popping up purchase/toll/action modals
+        setTimeout(() => {
+          handleSpaceAction(player, finalSpace);
+        }, speedConfig.arrivalPauseMs);
       }
-    }, 160);
+    }, speedConfig.stepIntervalMs);
   };
 
-  // Roll Dice Trigger
-  const handleRollDice = (d1: number, d2: number) => {
+  // Synchronized Dice Roll Trigger (Visual Tumbling + Audio + Settle + Token Movement)
+  const triggerDiceRoll = () => {
     const activePlayer = players[activePlayerIndex];
-    if (!activePlayer || activePlayer.isBankrupt) return;
+    if (!activePlayer || activePlayer.isBankrupt || isRolling || isTumbling) return;
 
     setIsRolling(true);
-    setLastDice([d1, d2]);
+    setIsTumbling(true);
 
-    const total = d1 + d2;
+    const d1 = Math.floor(Math.random() * 6) + 1;
+    const d2 = Math.floor(Math.random() * 6) + 1;
     const rolledDouble = d1 === d2;
-    setIsDouble(rolledDouble);
 
-    if (rolledDouble) {
-      soundManager.playDoubleBonus();
-      setDoubleCount(prev => prev + 1);
-      addLog(activePlayer.id, `🎲 ${activePlayer.name} 주사위 [${d1} + ${d2} = ${total}] 더블 굴림!`, 'roll');
-    } else {
-      setDoubleCount(0);
-      addLog(activePlayer.id, `🎲 ${activePlayer.name} 주사위 [${d1} + ${d2} = ${total}] 굴림`, 'roll');
-    }
+    const totalTicks = speedConfig.diceRollTicks;
+    const tickInterval = speedConfig.diceRollIntervalMs;
 
-    // 3 doubles penalty check
-    if (rolledDouble && doubleCount >= 2) {
-      soundManager.playTollPenalty();
-      addLog(activePlayer.id, `🚨 3회 연속 더블 발생! 무인도로 강제 이송됩니다.`, 'event');
-      setPlayers(prev => {
-        const next = prev.map(p => p.id === activePlayer.id ? { ...p, pos: 10, islandTurnsLeft: 3 } : p);
-        return updateTotalAssets(next, cells);
-      });
-      setIsRolling(false);
-      setTimeout(() => endTurn(false), 800);
-      return;
-    }
+    // Start rolling sound immediately in exact sync with animation
+    soundManager.playDiceRoll(totalTicks * tickInterval);
 
-    // Space Travel immediate warp handling
-    if (activePlayer.spaceTravelQueued) {
-      setPlayers(prev => prev.map(p => p.id === activePlayer.id ? { ...p, spaceTravelQueued: false } : p));
-      if (activePlayer.isAI) {
-        const target = decideAISpaceTravelDestination(BOARD_SPACES, cells, activePlayer, players);
-        warpToDestination(target);
-      } else {
-        setIsRolling(false);
-        setActiveModal('space_travel');
-        return;
+    let count = 0;
+    const interval = setInterval(() => {
+      setCurrentDice([
+        Math.floor(Math.random() * 6) + 1,
+        Math.floor(Math.random() * 6) + 1
+      ]);
+      count++;
+
+      if (count >= totalTicks) {
+        clearInterval(interval);
+        setCurrentDice([d1, d2]);
+        setLastDice([d1, d2]);
+        setIsTumbling(false);
+        soundManager.playDiceLand();
+
+        const total = d1 + d2;
+        setIsDouble(rolledDouble);
+
+        if (rolledDouble) {
+          soundManager.playDoubleBonus();
+          setDoubleCount(prev => prev + 1);
+          addLog(activePlayer.id, `🎲 ${activePlayer.name} 주사위 [${d1} + ${d2} = ${total}] 더블 굴림!`, 'roll');
+          triggerBroadcast({
+            category: 'roll',
+            playerId: activePlayer.id,
+            playerName: activePlayer.name,
+            playerColor: activePlayer.color,
+            isAI: activePlayer.isAI,
+            title: `🎲 주사위 [${d1} + ${d2} = ${total}] 더블! 🎯`,
+            detail: `${activePlayer.name}님이 ${total}칸 전진합니다. (더블 찬스로 한 번 더 굴림!)`,
+            badge: '더블 찬스 🎯',
+            badgeColor: 'amber'
+          });
+        } else {
+          setDoubleCount(0);
+          addLog(activePlayer.id, `🎲 ${activePlayer.name} 주사위 [${d1} + ${d2} = ${total}] 굴림`, 'roll');
+          triggerBroadcast({
+            category: 'roll',
+            playerId: activePlayer.id,
+            playerName: activePlayer.name,
+            playerColor: activePlayer.color,
+            isAI: activePlayer.isAI,
+            title: `🎲 주사위 [${d1} + ${d2} = ${total}] 굴림!`,
+            detail: `${activePlayer.name}님이 ${total}칸 이동합니다.`,
+            badge: `${total}칸 이동`,
+            badgeColor: 'sky'
+          });
+        }
+
+        // Settling delay: let player see the rolled dice result clearly before moving token
+        setTimeout(() => {
+          // 3 doubles penalty check
+          if (rolledDouble && doubleCount >= 2) {
+            soundManager.playTollPenalty();
+            addLog(activePlayer.id, `🚨 3회 연속 더블 발생! 무인도로 강제 이송됩니다.`, 'event');
+            triggerBroadcast({
+              category: 'island',
+              playerId: activePlayer.id,
+              playerName: activePlayer.name,
+              playerColor: activePlayer.color,
+              isAI: activePlayer.isAI,
+              title: `🚨 3회 연속 더블! 무인도 강제 이송!`,
+              detail: '과도한 속도 위반으로 무인도에 3턴 동안 구금 조치됩니다.',
+              badge: '무인도 수감',
+              badgeColor: 'indigo'
+            });
+            setPlayers(prev => {
+              const next = prev.map(p => p.id === activePlayer.id ? { ...p, pos: 10, islandTurnsLeft: 3 } : p);
+              return updateTotalAssets(next, cells);
+            });
+            setIsRolling(false);
+            setTimeout(() => endTurn(false), speedConfig.modalActionDelayMs);
+            return;
+          }
+
+          // Space Travel immediate warp handling
+          if (activePlayer.spaceTravelQueued) {
+            setPlayers(prev => prev.map(p => p.id === activePlayer.id ? { ...p, spaceTravelQueued: false } : p));
+            if (activePlayer.isAI) {
+              const target = decideAISpaceTravelDestination(BOARD_SPACES, cells, activePlayer, players);
+              warpToDestination(target);
+            } else {
+              setIsRolling(false);
+              setActiveModal('space_travel');
+            }
+            return;
+          }
+
+          // Uninhabited Island check
+          if (activePlayer.islandTurnsLeft > 0) {
+            if (rolledDouble) {
+              soundManager.playCashGain();
+              addLog(activePlayer.id, `🎉 더블 성공! 무인도에서 극적으로 탈출합니다!`, 'event');
+              triggerBroadcast({
+                category: 'roll',
+                playerId: activePlayer.id,
+                playerName: activePlayer.name,
+                playerColor: activePlayer.color,
+                isAI: activePlayer.isAI,
+                title: `🎉 더블 탈출 성공!`,
+                detail: `주사위 더블 [${d1}, ${d2}]이 나와 무인도를 탈출하여 ${total}칸 전진합니다!`,
+                badge: '탈출 성공',
+                badgeColor: 'emerald'
+              });
+              setPlayers(prev => prev.map(p => p.id === activePlayer.id ? { ...p, islandTurnsLeft: 0 } : p));
+              moveTokenSteps(activePlayer, total);
+            } else {
+              soundManager.playTollPenalty();
+              addLog(activePlayer.id, `🏝️ 탈출 실패 (남은 턴: ${activePlayer.islandTurnsLeft - 1})`, 'event');
+              triggerBroadcast({
+                category: 'island',
+                playerId: activePlayer.id,
+                playerName: activePlayer.name,
+                playerColor: activePlayer.color,
+                isAI: activePlayer.isAI,
+                title: `🏝️ 무인도 탈출 실패 (남은 턴: ${activePlayer.islandTurnsLeft - 1})`,
+                detail: '더블이 나오지 않아 이번 턴에는 이동할 수 없습니다.',
+                badge: `남은 ${activePlayer.islandTurnsLeft - 1}턴`,
+                badgeColor: 'indigo'
+              });
+              setPlayers(prev => prev.map(p => p.id === activePlayer.id ? { ...p, islandTurnsLeft: p.islandTurnsLeft - 1 } : p));
+              setIsRolling(false);
+              setTimeout(() => endTurn(false), speedConfig.modalActionDelayMs);
+            }
+            return;
+          }
+
+          moveTokenSteps(activePlayer, total);
+        }, 400);
       }
-      return;
-    }
-
-    // Uninhabited Island check
-    if (activePlayer.islandTurnsLeft > 0) {
-      if (rolledDouble) {
-        soundManager.playCashGain();
-        addLog(activePlayer.id, `🎉 더블 성공! 무인도에서 극적으로 탈출합니다!`, 'event');
-        setPlayers(prev => prev.map(p => p.id === activePlayer.id ? { ...p, islandTurnsLeft: 0 } : p));
-        moveTokenSteps(activePlayer, total);
-      } else {
-        soundManager.playTollPenalty();
-        addLog(activePlayer.id, `🏝️ 탈출 실패 (남은 턴: ${activePlayer.islandTurnsLeft - 1})`, 'event');
-        setPlayers(prev => prev.map(p => p.id === activePlayer.id ? { ...p, islandTurnsLeft: p.islandTurnsLeft - 1 } : p));
-        setIsRolling(false);
-        setTimeout(() => endTurn(false), 800);
-      }
-      return;
-    }
-
-    moveTokenSteps(activePlayer, total);
+    }, tickInterval);
   };
 
   // Warp directly to destination (Space travel)
@@ -470,8 +770,20 @@ export default function App() {
     const activePlayer = players[activePlayerIndex];
     if (!activePlayer) return;
 
+    const destSpace = BOARD_SPACES[destPos];
     soundManager.playGoldenKey();
-    addLog(activePlayer.id, `🛸 우주여행 워프 가동! [${BOARD_SPACES[destPos].name}]으로 순간이동!`, 'event');
+    addLog(activePlayer.id, `🛸 우주여행 워프 가동! [${destSpace.name}]으로 순간이동!`, 'event');
+    triggerBroadcast({
+      category: 'space_travel',
+      playerId: activePlayer.id,
+      playerName: activePlayer.name,
+      playerColor: activePlayer.color,
+      isAI: activePlayer.isAI,
+      title: `🛸 [${destSpace.name}]으로 우주 워프 순간이동!`,
+      detail: `${activePlayer.name}님이 우주선을 타고 목적지로 즉시 워프 이동했습니다.`,
+      badge: '워프 완료',
+      badgeColor: 'purple'
+    });
     
     setPlayers(prev => {
       const next = prev.map(p => p.id === activePlayer.id ? { ...p, pos: destPos } : p);
@@ -481,7 +793,7 @@ export default function App() {
     setActiveModal(null);
     setTimeout(() => {
       handleSpaceAction(activePlayer, BOARD_SPACES[destPos]);
-    }, 500);
+    }, speedConfig.arrivalPauseMs);
   };
 
   // Confirm Real Estate Purchase & Construction
@@ -516,6 +828,27 @@ export default function App() {
       return updated;
     });
 
+    const bldNames: string[] = [];
+    if (buildings.isLandmark) bldNames.push('👑 랜드마크');
+    else {
+      if (buildings.hasHotel) bldNames.push('호텔');
+      if (buildings.hasBuilding) bldNames.push('빌딩');
+      if (buildings.hasVilla) bldNames.push('빌라');
+    }
+    const bldDesc = bldNames.length > 0 ? bldNames.join(', ') : '토지 매입';
+
+    triggerBroadcast({
+      category: 'purchase',
+      playerId: player.id,
+      playerName: player.name,
+      playerColor: player.color,
+      isAI: player.isAI,
+      title: `🏗️ [${space.name}] ${bldDesc} 완공! (-${cost}만 원)`,
+      detail: `${player.name} 투자 완료 (새 통행료: ${calculatedToll}만 원, 잔여 자금: ${player.money - cost}만 원)`,
+      badge: buildings.isLandmark ? '👑 랜드마크' : `투자 -${cost}만`,
+      badgeColor: buildings.isLandmark ? 'amber' : 'emerald'
+    });
+
     addLog(
       player.id,
       `🏙️ ${player.name}가 [${space.name}]에 투자 완료! (비용: ${cost}만, 통행료: ${calculatedToll}만)${buildings.isLandmark ? ' 👑 랜드마크 달성!' : ''}`,
@@ -523,7 +856,7 @@ export default function App() {
     );
 
     setActiveModal(null);
-    setTimeout(() => endTurn(isDouble), 600);
+    setTimeout(() => endTurn(isDouble), speedConfig.modalActionDelayMs);
   };
 
   // Execute Toll Payment
@@ -533,6 +866,18 @@ export default function App() {
     showFloatingEffect(owner.id, toll, true);
 
     addLog(payer.id, `💸 ${payer.name}가 ${owner.name}의 [${space.name}] 통행료 ${toll}만 원 지불`, 'toll');
+
+    triggerBroadcast({
+      category: 'toll_paid',
+      playerId: payer.id,
+      playerName: payer.name,
+      playerColor: payer.color,
+      isAI: payer.isAI,
+      title: `💸 [${space.name}] 통행료 ${toll}만 원 지불 완료!`,
+      detail: `${payer.name} → ${owner.name}님에게 통행료 ${toll}만 원 송금 (지불 후 잔액: ${payer.money - toll}만 원)`,
+      badge: `통행료 -${toll}만`,
+      badgeColor: 'rose'
+    });
 
     setPlayers(prev => {
       const next = prev.map(p => {
@@ -545,7 +890,7 @@ export default function App() {
     });
 
     setActiveModal(null);
-    setTimeout(() => endTurn(isDouble), 600);
+    setTimeout(() => endTurn(isDouble), speedConfig.modalActionDelayMs);
   };
 
   // Execute Takeover (도시 인수)
@@ -577,6 +922,18 @@ export default function App() {
       });
     });
 
+    triggerBroadcast({
+      category: 'takeover',
+      playerId: buyer.id,
+      playerName: buyer.name,
+      playerColor: buyer.color,
+      isAI: buyer.isAI,
+      title: `💥 [${space.name}] 전격 인수(Takeover) 성공!`,
+      detail: `${buyer.name}님이 ${owner.name}님의 소유지를 인수했습니다! (총 비용: ${totalCost}만 원)`,
+      badge: `인수 -${totalCost}만`,
+      badgeColor: 'amber'
+    });
+
     addLog(
       buyer.id,
       `💥 ${buyer.name}가 ${owner.name}의 [${space.name}]을(를) ${takeoverCost}만 원에 전격 인수(Takeover)했습니다!`,
@@ -584,7 +941,7 @@ export default function App() {
     );
 
     setActiveModal(null);
-    setTimeout(() => endTurn(isDouble), 600);
+    setTimeout(() => endTurn(isDouble), speedConfig.modalActionDelayMs);
   };
 
   // Apply Golden Key Effect
@@ -603,6 +960,17 @@ export default function App() {
           return updateTotalAssets(next, cells);
         });
         addLog(activePlayer.id, `💰 ${card.title}로 +${gain}만 원 획득!`, 'golden_key');
+        triggerBroadcast({
+          category: 'golden_key',
+          playerId: activePlayer.id,
+          playerName: activePlayer.name,
+          playerColor: activePlayer.color,
+          isAI: activePlayer.isAI,
+          title: `💰 [${card.title}] +${gain}만 원 획득!`,
+          detail: card.description,
+          badge: `+${gain}만 원`,
+          badgeColor: 'emerald'
+        });
         break;
       }
       case 'money_loss': {
@@ -615,6 +983,17 @@ export default function App() {
           return updateTotalAssets(next, cells);
         });
         addLog(activePlayer.id, `💸 ${card.title}로 -${loss}만 원 차감`, 'golden_key');
+        triggerBroadcast({
+          category: 'golden_key',
+          playerId: activePlayer.id,
+          playerName: activePlayer.name,
+          playerColor: activePlayer.color,
+          isAI: activePlayer.isAI,
+          title: `💸 [${card.title}] -${loss}만 원 차감`,
+          detail: card.description,
+          badge: `-${loss}만 원`,
+          badgeColor: 'rose'
+        });
         break;
       }
       case 'donation': {
@@ -628,6 +1007,17 @@ export default function App() {
           return updateTotalAssets(next, cells);
         });
         addLog(activePlayer.id, `💖 사회복지기금에 ${donation}만 원 후원 완료`, 'golden_key');
+        triggerBroadcast({
+          category: 'golden_key',
+          playerId: activePlayer.id,
+          playerName: activePlayer.name,
+          playerColor: activePlayer.color,
+          isAI: activePlayer.isAI,
+          title: `💖 [${card.title}] 기금 후원 (-${donation}만 원)`,
+          detail: card.description,
+          badge: `기부 -${donation}만`,
+          badgeColor: 'rose'
+        });
         break;
       }
       case 'jackpot': {
@@ -641,6 +1031,17 @@ export default function App() {
             return updateTotalAssets(next, cells);
           });
           addLog(activePlayer.id, `🏦 사회복지기금 대박 수령! (+${pot}만 원)`, 'golden_key');
+          triggerBroadcast({
+            category: 'golden_key',
+            playerId: activePlayer.id,
+            playerName: activePlayer.name,
+            playerColor: activePlayer.color,
+            isAI: activePlayer.isAI,
+            title: `🏦 사회복지기금 대박 수령! (+${pot}만 원)`,
+            detail: card.description,
+            badge: `대박 +${pot}만`,
+            badgeColor: 'emerald'
+          });
         }
         break;
       }
@@ -648,6 +1049,17 @@ export default function App() {
         soundManager.playCashGain();
         setPlayers(prev => prev.map(p => p.id === activePlayer.id ? { ...p, hasIslandEscapeCard: p.hasIslandEscapeCard + 1 } : p));
         addLog(activePlayer.id, `🛶 무인도 탈출권 1장 획득 및 보관`, 'golden_key');
+        triggerBroadcast({
+          category: 'golden_key',
+          playerId: activePlayer.id,
+          playerName: activePlayer.name,
+          playerColor: activePlayer.color,
+          isAI: activePlayer.isAI,
+          title: `🛶 무인도 탈출권 획득!`,
+          detail: '무인도 조난 시 즉시 사용할 수 있는 비상 탈출권을 획득했습니다.',
+          badge: '탈출권 +1',
+          badgeColor: 'amber'
+        });
         break;
       }
       case 'move_space': {
@@ -665,19 +1077,30 @@ export default function App() {
         soundManager.playTollPenalty();
         setPlayers(prev => prev.map(p => p.id === activePlayer.id ? { ...p, pos: 10, islandTurnsLeft: 3 } : p));
         addLog(activePlayer.id, `🏝️ 폭풍우로 무인도로 강제 이송되었습니다!`, 'golden_key');
-        setTimeout(() => endTurn(isDouble), 600);
+        triggerBroadcast({
+          category: 'island',
+          playerId: activePlayer.id,
+          playerName: activePlayer.name,
+          playerColor: activePlayer.color,
+          isAI: activePlayer.isAI,
+          title: `🏝️ 폭풍우 발생! 무인도로 강제 이송!`,
+          detail: '거센 태풍을 만나 무인도로 표류했습니다. (3턴 조난)',
+          badge: '무인도 3턴',
+          badgeColor: 'indigo'
+        });
+        setTimeout(() => endTurn(isDouble), speedConfig.modalActionDelayMs);
         return;
       }
     }
 
     setActiveModal(null);
-    setTimeout(() => endTurn(isDouble), 600);
+    setTimeout(() => endTurn(isDouble), speedConfig.modalActionDelayMs);
   };
 
   // AI Turn Automation Trigger
   useEffect(() => {
     const activePlayer = players[activePlayerIndex];
-    if (activePlayer && activePlayer.isAI && !activePlayer.isBankrupt && !isRolling && activeModal === null && !gameOverData) {
+    if (activePlayer && activePlayer.isAI && !activePlayer.isBankrupt && !isRolling && !isTumbling && activeModal === null && !gameOverData) {
       const aiTimer = setTimeout(() => {
         // If in island, decide whether to pay fee or try double
         if (activePlayer.islandTurnsLeft > 0) {
@@ -690,15 +1113,13 @@ export default function App() {
           }
         }
 
-        // Roll
-        const d1 = Math.floor(Math.random() * 6) + 1;
-        const d2 = Math.floor(Math.random() * 6) + 1;
-        handleRollDice(d1, d2);
-      }, 1200);
+        // Trigger synchronized visual & sound roll
+        triggerDiceRoll();
+      }, speedConfig.aiThinkDelayMs);
 
       return () => clearTimeout(aiTimer);
     }
-  }, [activePlayerIndex, isRolling, activeModal, gameOverData, players]);
+  }, [activePlayerIndex, isRolling, isTumbling, activeModal, gameOverData, players, speedConfig.aiThinkDelayMs]);
 
   // Apply new game mode config and reset
   const handleApplyConfig = (newConfig: GameModeConfig) => {
@@ -757,11 +1178,19 @@ export default function App() {
 
     const totalCount = config.humanCount + config.aiCount;
     const humanNamesStr = names.join(', ');
-    addLog(0, `🎲 [${humanNamesStr}] 님이 참여하는 부루마블 게임이 시작되었습니다! (총 ${totalCount}인)`, 'event');
+    const speedLabel = config.speed === 'slow' ? '느림 (여유로움)' : config.speed === 'fast' ? '빠르게 (스피드)' : '보통 (추천)';
+    addLog(0, `🎲 [${humanNamesStr}] 님이 참여하는 부루마블 게임이 시작되었습니다! (총 ${totalCount}인, 속도: ${speedLabel})`, 'event');
 
     setGameState('playing');
     setTurnBannerVisible(true);
-    setTimeout(() => setTurnBannerVisible(false), 2000);
+    setTimeout(() => setTurnBannerVisible(false), speedConfig.bannerDurationMs);
+  };
+
+  // Change Game Speed on the fly
+  const handleChangeSpeed = (newSpeed: GameSpeed) => {
+    setGameConfig(prev => ({ ...prev, speed: newSpeed }));
+    const label = newSpeed === 'slow' ? '🐢 느림' : newSpeed === 'normal' ? '🚶 보통' : '⚡ 빠르게';
+    addLog(0, `⚡ 게임 진행 속도가 [${label}]으로 변경되었습니다.`, 'event');
   };
 
   // Reset Game with current config and names
@@ -789,7 +1218,7 @@ export default function App() {
     setGameLogs([]);
     addLog(0, "✨ 새 게임이 시작되었습니다! 행운을 빕니다.", "event");
     setTurnBannerVisible(true);
-    setTimeout(() => setTurnBannerVisible(false), 2000);
+    setTimeout(() => setTurnBannerVisible(false), speedConfig.bannerDurationMs);
   };
 
   const handleExitToLobby = () => {
@@ -836,13 +1265,16 @@ export default function App() {
             cells={cells}
             players={players}
             activePlayerIndex={activePlayerIndex}
-            onRollDice={handleRollDice}
+            onRollDice={triggerDiceRoll}
             isRolling={isRolling}
-            isDiceDisabled={isRolling || activePlayer.isAI || activeModal !== null}
-            lastDice={lastDice}
+            isTumbling={isTumbling}
+            isDiceDisabled={isRolling || isTumbling || activePlayer.isAI || activeModal !== null}
+            currentDice={currentDice}
             isDouble={isDouble}
             highlightedCellId={activePlayer.pos}
             isDestinationSelectionActive={activeModal === 'space_travel'}
+            gameSpeed={currentSpeed}
+            broadcast={boardBroadcast}
             onCellClick={(id) => {
               if (activeModal === 'space_travel') {
                 warpToDestination(id);
@@ -860,6 +1292,7 @@ export default function App() {
           soundEnabled={soundEnabled}
           onToggleSound={() => setSoundEnabled(!soundEnabled)}
           onExitToLobby={handleExitToLobby}
+          onChangeSpeed={handleChangeSpeed}
           socialFund={socialFund}
           currentTurnCount={turnCount}
         />
@@ -883,9 +1316,20 @@ export default function App() {
           player={activePlayer}
           onConfirmPurchase={(buildings, cost) => confirmPurchase(buildings, cost)}
           onSkip={() => {
-            addLog(activePlayer.id, `▶ ${activePlayer.name}가 투자를 보류했습니다.`, 'buy');
+            addLog(activePlayer.id, `▶ ${activePlayer.name}가 [${activeSpace.name}] 투자를 보류했습니다.`, 'buy');
+            triggerBroadcast({
+              category: 'pass',
+              playerId: activePlayer.id,
+              playerName: activePlayer.name,
+              playerColor: activePlayer.color,
+              isAI: activePlayer.isAI,
+              title: `⏭️ [${activeSpace.name}] 투자 보류 (패스)`,
+              detail: `${activePlayer.name}님이 이번 턴 투자를 건너뛰었습니다.`,
+              badge: '투자 보류',
+              badgeColor: 'slate'
+            });
             setActiveModal(null);
-            setTimeout(() => endTurn(isDouble), 600);
+            setTimeout(() => endTurn(isDouble), speedConfig.modalActionDelayMs);
           }}
         />
       )}

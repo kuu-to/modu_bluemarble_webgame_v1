@@ -17,29 +17,54 @@ class SoundEffects {
   }
 
   // Play a dice tumbling rattle sound
-  playDiceRoll() {
+  playDiceRoll(durationMs: number = 550) {
     if (!this.enabled) return;
     this.init();
     if (!this.ctx) return;
 
     const now = this.ctx.currentTime;
-    for (let i = 0; i < 7; i++) {
+    const count = Math.max(5, Math.floor(durationMs / 70));
+    for (let i = 0; i < count; i++) {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(160 + Math.random() * 280, now + i * 0.08);
-      osc.frequency.exponentialRampToValueAtTime(80, now + i * 0.08 + 0.06);
+      osc.frequency.setValueAtTime(180 + Math.random() * 320, now + i * 0.07);
+      osc.frequency.exponentialRampToValueAtTime(70, now + i * 0.07 + 0.05);
 
-      gain.gain.setValueAtTime(0.2, now + i * 0.08);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.08 + 0.06);
+      gain.gain.setValueAtTime(0.22, now + i * 0.07);
+      gain.gain.exponentialRampToValueAtTime(0.005, now + i * 0.07 + 0.05);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
 
-      osc.start(now + i * 0.08);
-      osc.stop(now + i * 0.08 + 0.06);
+      osc.start(now + i * 0.07);
+      osc.stop(now + i * 0.07 + 0.05);
     }
+  }
+
+  // Play dice landing solid impact sound when roll settles
+  playDiceLand() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(90, now + 0.09);
+
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.09);
   }
 
   // Play double dice bonus fanfare
