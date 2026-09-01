@@ -28,6 +28,7 @@ import { GameOverModal } from './components/GameOverModal';
 import { ModeSelectModal } from './components/ModeSelectModal';
 import { FloatingCashEffect } from './components/FloatingCashEffect';
 import { GameSetupScreen } from './components/GameSetupScreen';
+import { EmergencyDebtModal } from './components/EmergencyDebtModal';
 
 const INITIAL_MONEY = 300; // 300만 원 initial cash
 const SALARY_AMOUNT = 20; // 20만 원 salary
@@ -37,11 +38,15 @@ export default function App() {
   const [gameConfig, setGameConfig] = useState<GameModeConfig>({
     humanCount: 2,
     aiCount: 0,
-    speed: 'normal'
+    speed: 'normal',
+    timeLimitMinutes: 60
   });
   const [customNames, setCustomNames] = useState<string[]>(['플레이어 1', '플레이어 2']);
   const [isModeModalOpen, setIsModeModalOpen] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+
+  // Time limit state
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
 
   const currentSpeed: GameSpeed = gameConfig.speed || 'normal';
   const speedConfig = SPEED_CONFIGS[currentSpeed];
@@ -82,9 +87,16 @@ export default function App() {
   const [boardBroadcast, setBoardBroadcast] = useState<BoardBroadcastMessage | null>(null);
 
   // Active modal controls
-  const [activeModal, setActiveModal] = useState<null | 'purchase' | 'toll' | 'golden_key' | 'space_travel' | 'game_over'>(null);
+  const [activeModal, setActiveModal] = useState<null | 'purchase' | 'toll' | 'golden_key' | 'space_travel' | 'game_over' | 'debt'>(null);
   const [currentGoldenKey, setCurrentGoldenKey] = useState<GoldenKeyCard | null>(null);
   const [currentTollData, setCurrentTollData] = useState<{ space: SpaceData; owner: Player; payer: Player } | null>(null);
+  const [debtModalData, setDebtModalData] = useState<{
+    payer: Player;
+    debtAmount: number;
+    recipient: Player | null;
+    reasonText: string;
+    onSuccess: (updatedPayer: Player, updatedRecipient: Player | null) => void;
+  } | null>(null);
   const [gameOverData, setGameOverData] = useState<GameOverResult | null>(null);
 
   // Reference trackers for rock-solid concurrency and race condition prevention
@@ -94,6 +106,7 @@ export default function App() {
   const cellsRef = useRef<Record<number, CellState>>(cells);
   const activePlayerIndexRef = useRef<number>(activePlayerIndex);
   const isTurnBusyRef = useRef<boolean>(false);
+  const doubleCountRef = useRef<number>(0);
 
   // Synchronize refs
   useEffect(() => {
@@ -111,6 +124,10 @@ export default function App() {
   useEffect(() => {
     isTurnBusyRef.current = isTurnBusy;
   }, [isTurnBusy]);
+
+  useEffect(() => {
+    doubleCountRef.current = doubleCount;
+  }, [doubleCount]);
 
   // Unified timer registration with turn sequence safety validation
   const registerTimer = (fn: () => void, delayMs: number, expectedTurnSeq?: number) => {
@@ -154,6 +171,53 @@ export default function App() {
   useEffect(() => {
     soundManager.enabled = soundEnabled;
   }, [soundEnabled]);
+
+  // Time Limit Countdown Interval
+  useEffect(() => {
+    if (gameState !== 'playing' || remainingSeconds === null || gameOverData) return;
+
+    if (remainingSeconds <= 0) {
+      // Time expired! Trigger final asset evaluation
+      handleTimeExpired();
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setRemainingSeconds(prev => (prev !== null && prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [gameState, remainingSeconds, gameOverData]);
+
+  // Handle Game Time Limit Expiration
+  const handleTimeExpired = () => {
+    const playerList = playersRef.current;
+    // Calculate final net wealth: totalAssets (which includes land + buildings + cash - debt)
+    const sorted = [...playerList].sort((a, b) => {
+      if (a.isBankrupt !== b.isBankrupt) return a.isBankrupt ? 1 : -1;
+      return b.totalAssets - a.totalAssets;
+    });
+
+    const winner = sorted[0];
+    soundManager.playVictory();
+    setGameOverData({
+      winner,
+      rankings: sorted,
+      reason: `⏱️ 제한 시간 종료! 총 자산(땅+건물+현금-빚) 최고 보유자 승리!`
+    });
+    setActiveModal('game_over');
+    triggerBroadcast({
+      category: 'turn',
+      playerId: winner.id,
+      playerName: winner.name,
+      playerColor: winner.color,
+      isAI: winner.isAI,
+      title: `🏆 [${winner.name}] 제한 시간 종료 최종 우승!`,
+      detail: `최종 순자산 ${winner.totalAssets}만 원으로 1위를 차지했습니다!`,
+      badge: '시간 종료 승리',
+      badgeColor: 'amber'
+    });
+  };
 
   // Initial welcome log & board broadcast
   useEffect(() => {
@@ -206,23 +270,27 @@ export default function App() {
     ]);
   };
 
-  // Recalculate total assets
+  // Recalculate total assets (Cash + Land & Buildings Value - Debt)
   const updateTotalAssets = (updatedPlayers: Player[], updatedCells: Record<number, CellState>) => {
     return updatedPlayers.map(p => {
-      let assetSum = p.money;
+      let propertySum = 0;
       let count = 0;
       Object.entries(updatedCells).forEach(([idStr, cell]) => {
         if (cell.owner === p.id) {
           count++;
           const space = BOARD_SPACES[Number(idStr)];
           if (space) {
-            assetSum += calculateSpaceValue(space, cell.buildings);
+            propertySum += calculateSpaceValue(space, cell.buildings);
           }
         }
       });
+
+      // Total Net Assets = Cash + Property Value - Debt
+      const netAssets = Math.max(0, p.money + propertySum - (p.debt || 0));
+
       return {
         ...p,
-        totalAssets: assetSum,
+        totalAssets: netAssets,
         ownedCityCount: count
       };
     });
@@ -263,6 +331,7 @@ export default function App() {
     }
 
     setDoubleCount(0);
+    doubleCountRef.current = 0;
     setIsDouble(false);
     setActiveModal(null);
     setIsRolling(false);
@@ -368,6 +437,34 @@ export default function App() {
     }
 
     return false;
+  };
+
+  // Repay Debt handler for players
+  const handleRepayDebt = (playerId: number) => {
+    const p = playersRef.current.find(x => x.id === playerId);
+    if (!p || p.debt <= 0 || p.money < p.debt) return;
+
+    soundManager.playCashGain();
+    const repayAmount = p.debt;
+    showFloatingEffect(p.id, repayAmount, false);
+
+    setPlayers(prev => {
+      const next = prev.map(x => x.id === playerId ? { ...x, money: x.money - repayAmount, debt: 0 } : x);
+      return updateTotalAssets(next, cellsRef.current);
+    });
+
+    addLog(p.id, `💳 ${p.name}가 대출 빚 ${repayAmount}만 원을 전액 상환했습니다!`, 'event');
+    triggerBroadcast({
+      category: 'purchase',
+      playerId: p.id,
+      playerName: p.name,
+      playerColor: p.color,
+      isAI: p.isAI,
+      title: `💳 [대출 빚 상환 완료]`,
+      detail: `${p.name}님이 누적된 대출 빚 ${repayAmount}만 원을 전액 변제했습니다.`,
+      badge: '부채 0원',
+      badgeColor: 'emerald'
+    });
   };
 
   // Handle Action on Space Landing
@@ -703,7 +800,7 @@ export default function App() {
         setIsRolling(false);
         const finalSpace = BOARD_SPACES[currPos];
         
-        // Immediate Arrival Notification (Issue 6 UX Improvement)
+        // Immediate Arrival Notification
         triggerBroadcast({
           category: 'arrive',
           playerId: player.id,
@@ -768,22 +865,26 @@ export default function App() {
         setIsDouble(rolledDouble);
 
         if (rolledDouble) {
+          const nextDoubleCount = doubleCountRef.current + 1;
+          setDoubleCount(nextDoubleCount);
+          doubleCountRef.current = nextDoubleCount;
+
           soundManager.playDoubleBonus();
-          setDoubleCount(prev => prev + 1);
-          addLog(activePlayer.id, `🎲 ${activePlayer.name} 주사위 [${d1} + ${d2} = ${total}] 더블 굴림!`, 'roll');
+          addLog(activePlayer.id, `🎲 ${activePlayer.name} 주사위 [${d1} + ${d2} = ${total}] 더블 굴림! (연속 ${nextDoubleCount}회)`, 'roll');
           triggerBroadcast({
             category: 'roll',
             playerId: activePlayer.id,
             playerName: activePlayer.name,
             playerColor: activePlayer.color,
             isAI: activePlayer.isAI,
-            title: `🎲 주사위 [${d1} + ${d2} = ${total}] 더블! 🎯`,
+            title: `🎲 주사위 [${d1} + ${d2} = ${total}] 더블! (연속 ${nextDoubleCount}회) 🎯`,
             detail: `${activePlayer.name}님이 ${total}칸 전진합니다. (더블 찬스로 한 번 더 굴림!)`,
-            badge: '더블 찬스 🎯',
+            badge: `더블 찬스 (${nextDoubleCount}연속)`,
             badgeColor: 'amber'
           });
         } else {
           setDoubleCount(0);
+          doubleCountRef.current = 0;
           addLog(activePlayer.id, `🎲 ${activePlayer.name} 주사위 [${d1} + ${d2} = ${total}] 굴림`, 'roll');
           triggerBroadcast({
             category: 'roll',
@@ -800,10 +901,10 @@ export default function App() {
 
         // Settling delay: let player see the rolled dice result clearly before moving token
         registerTimer(() => {
-          // 3 doubles penalty check
-          if (rolledDouble && doubleCount >= 2) {
+          // 3 consecutive doubles penalty rule: Send to Island directly
+          if (rolledDouble && doubleCountRef.current >= 3) {
             soundManager.playTollPenalty();
-            addLog(activePlayer.id, `🚨 3회 연속 더블 발생! 무인도로 강제 이송됩니다.`, 'event');
+            addLog(activePlayer.id, `🚨 3회 연속 더블 발생! 무인도로 강제 이송 조치됩니다.`, 'event');
             triggerBroadcast({
               category: 'island',
               playerId: activePlayer.id,
@@ -811,7 +912,7 @@ export default function App() {
               playerColor: activePlayer.color,
               isAI: activePlayer.isAI,
               title: `🚨 3회 연속 더블! 무인도 강제 이송!`,
-              detail: '과도한 속도 위반으로 무인도에 3턴 동안 구금 조치됩니다.',
+              detail: '과속 위반으로 무인도에 3턴 동안 구금 조치됩니다.',
               badge: '무인도 수감',
               badgeColor: 'indigo'
             });
@@ -820,6 +921,8 @@ export default function App() {
               return updateTotalAssets(next, cellsRef.current);
             });
             setIsRolling(false);
+            setDoubleCount(0);
+            doubleCountRef.current = 0;
             registerTimer(() => endTurn(false, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
             return;
           }
@@ -983,9 +1086,133 @@ export default function App() {
     registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
   };
 
-  // Execute Toll Payment
+  // Execute Toll Payment (With Loan & Property Sale Rescue Support)
   const executePayToll = (space: SpaceData, owner: Player, payer: Player, toll: number, currentTurnSeq?: number) => {
     const seq = currentTurnSeq || turnSeqRef.current;
+
+    // Check if player has enough money to pay
+    if (payer.money < toll) {
+      const deficit = toll - payer.money;
+
+      if (payer.isAI) {
+        // AI Rescue Decision: If hasn't used loan, take loan! Else sell properties
+        if (!payer.hasUsedLoan) {
+          // AI takes emergency loan
+          const loanAmt = deficit;
+          soundManager.playCashGain();
+          addLog(payer.id, `💳 ${payer.name}가 긴급 대출 ${loanAmt}만 원을 승인받아 통행료를 납부합니다.`, 'event');
+          
+          setPlayers(prev => {
+            const next = prev.map(p => {
+              if (p.id === payer.id) {
+                return {
+                  ...p,
+                  money: 0,
+                  debt: (p.debt || 0) + loanAmt,
+                  hasUsedLoan: true
+                };
+              }
+              if (p.id === owner.id) {
+                return { ...p, money: p.money + toll };
+              }
+              return p;
+            });
+            return updateTotalAssets(next, cellsRef.current);
+          });
+
+          showFloatingEffect(payer.id, toll, false);
+          showFloatingEffect(owner.id, toll, true);
+          setActiveModal(null);
+          registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+          return;
+        } else {
+          // Check if AI can sell properties
+          const aiOwnedCells = (Object.entries(cellsRef.current) as [string, CellState][]).filter(([_, c]) => c.owner === payer.id);
+          let recovered = 0;
+          const soldIds: number[] = [];
+
+          for (const [idStr, c] of aiOwnedCells) {
+            const sId = Number(idStr);
+            const sp = BOARD_SPACES[sId];
+            if (sp) {
+              const val = calculateSpaceValue(sp, c.buildings);
+              recovered += val;
+              soldIds.push(sId);
+              if (payer.money + recovered >= toll) break;
+            }
+          }
+
+          if (payer.money + recovered >= toll) {
+            // Sell AI properties and pay
+            setCells(prev => {
+              const nextC = { ...prev };
+              soldIds.forEach(id => {
+                nextC[id] = {
+                  owner: null,
+                  buildings: { hasVilla: false, hasBuilding: false, hasHotel: false, isLandmark: false },
+                  currentToll: 0
+                };
+              });
+              return nextC;
+            });
+
+            setPlayers(prev => {
+              const next = prev.map(p => {
+                if (p.id === payer.id) return { ...p, money: (p.money + recovered) - toll };
+                if (p.id === owner.id) return { ...p, money: p.money + toll };
+                return p;
+              });
+              return updateTotalAssets(next, cellsRef.current);
+            });
+
+            addLog(payer.id, `🏬 ${payer.name}가 도시 ${soldIds.length}개를 긴급 매각하여 통행료를 완납했습니다.`, 'event');
+            setActiveModal(null);
+            registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+            return;
+          } else {
+            // Bankrupt!
+            setPlayers(prev => {
+              const next = prev.map(p => p.id === payer.id ? { ...p, money: -1 } : p);
+              checkGameOver(next);
+              return updateTotalAssets(next, cellsRef.current);
+            });
+            setActiveModal(null);
+            registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+            return;
+          }
+        }
+      }
+
+      // For Human Player: Open Emergency Debt & Sell Modal!
+      setDebtModalData({
+        payer,
+        debtAmount: deficit,
+        recipient: owner,
+        reasonText: `${owner.name}의 [${space.name}] 통행료 ${toll}만 원 중 ${deficit}만 원 부족`,
+        onSuccess: (updatedPayer, updatedRecipient) => {
+          showFloatingEffect(payer.id, toll, false);
+          showFloatingEffect(owner.id, toll, true);
+          addLog(payer.id, `💸 ${payer.name}가 구제 조치를 통해 ${owner.name}의 통행료 ${toll}만 원을 정상 지불했습니다.`, 'toll');
+
+          setPlayers(prev => {
+            const next = prev.map(p => {
+              if (p.id === updatedPayer.id) return updatedPayer;
+              if (updatedRecipient && p.id === updatedRecipient.id) return updatedRecipient;
+              return p;
+            });
+            return updateTotalAssets(next, cellsRef.current);
+          });
+
+          setActiveModal(null);
+          setDebtModalData(null);
+          registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+        }
+      });
+      setActiveModal('debt');
+      return;
+    }
+
+    // Normal toll payment flow when payer has sufficient funds
     soundManager.playTollPenalty();
     showFloatingEffect(payer.id, toll, false);
     showFloatingEffect(owner.id, toll, true);
@@ -1016,6 +1243,106 @@ export default function App() {
 
     setActiveModal(null);
     registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+  };
+
+  // Loan confirmation handler from EmergencyDebtModal
+  const handleConfirmLoan = (loanAmount: number) => {
+    if (!debtModalData) return;
+    const { payer, recipient, onSuccess } = debtModalData;
+
+    soundManager.playCashGain();
+    const updatedPayer: Player = {
+      ...payer,
+      money: 0, // Used all existing cash + loan to pay full toll
+      debt: (payer.debt || 0) + loanAmount,
+      hasUsedLoan: true
+    };
+
+    const updatedRecipient: Player | null = recipient ? {
+      ...recipient,
+      money: recipient.money + (payer.money + loanAmount)
+    } : null;
+
+    addLog(payer.id, `💳 ${payer.name}가 긴급 구제 대출 ${loanAmount}만 원을 실행하여 부채가 발생했습니다.`, 'event');
+    triggerBroadcast({
+      category: 'purchase',
+      playerId: payer.id,
+      playerName: payer.name,
+      playerColor: payer.color,
+      isAI: payer.isAI,
+      title: `💳 [긴급 구제 대출 실행] (+${loanAmount}만 원)`,
+      detail: `${payer.name}님이 긴급 대출을 받아 통행료를 변제했습니다. (총 부채: ${updatedPayer.debt}만 원)`,
+      badge: `대출 빚 +${loanAmount}만`,
+      badgeColor: 'indigo'
+    });
+
+    onSuccess(updatedPayer, updatedRecipient);
+  };
+
+  // Property sale confirmation handler from EmergencyDebtModal
+  const handleConfirmSellProperties = (soldSpaceIds: number[], totalRecoveredMoney: number) => {
+    if (!debtModalData) return;
+    const { payer, debtAmount, recipient, onSuccess } = debtModalData;
+
+    // Reset sold cells
+    setCells(prev => {
+      const nextC = { ...prev };
+      soldSpaceIds.forEach(id => {
+        nextC[id] = {
+          owner: null,
+          buildings: { hasVilla: false, hasBuilding: false, hasHotel: false, isLandmark: false },
+          currentToll: 0
+        };
+      });
+      return nextC;
+    });
+
+    const totalMoneyAvailable = payer.money + totalRecoveredMoney;
+    const fullToll = payer.money + debtAmount;
+    const remainingMoney = totalMoneyAvailable - fullToll;
+
+    const updatedPayer: Player = {
+      ...payer,
+      money: remainingMoney
+    };
+
+    const updatedRecipient: Player | null = recipient ? {
+      ...recipient,
+      money: recipient.money + fullToll
+    } : null;
+
+    soundManager.playCashGain();
+    addLog(payer.id, `🏬 ${payer.name}가 소유 도시 ${soldSpaceIds.length}개를 매각하여 +${totalRecoveredMoney}만 원을 확보하고 통행료를 완납했습니다.`, 'event');
+    triggerBroadcast({
+      category: 'purchase',
+      playerId: payer.id,
+      playerName: payer.name,
+      playerColor: payer.color,
+      isAI: payer.isAI,
+      title: `🏬 [소유 도시 ${soldSpaceIds.length}개 긴급 매각]`,
+      detail: `매각 환급금 ${totalRecoveredMoney}만 원으로 부족금을 마련하여 통행료를 완납했습니다.`,
+      badge: `매각 +${totalRecoveredMoney}만`,
+      badgeColor: 'amber'
+    });
+
+    onSuccess(updatedPayer, updatedRecipient);
+  };
+
+  // Voluntary bankruptcy from EmergencyDebtModal
+  const handleVoluntaryBankruptcy = () => {
+    if (!debtModalData) return;
+    const { payer } = debtModalData;
+    setActiveModal(null);
+    setDebtModalData(null);
+
+    setPlayers(prev => {
+      const next = prev.map(p => p.id === payer.id ? { ...p, money: -1 } : p);
+      checkGameOver(next);
+      return updateTotalAssets(next, cellsRef.current);
+    });
+
+    const currentSeq = turnSeqRef.current;
+    registerTimer(() => endTurn(false, currentSeq), speedConfig.modalActionDelayMs, currentSeq);
   };
 
   function playerColor(id: number) {
@@ -1291,6 +1618,7 @@ export default function App() {
     setLastDice(null);
     setIsDouble(false);
     setDoubleCount(0);
+    doubleCountRef.current = 0;
     setIsRolling(false);
     setIsTumbling(false);
     setIsTurnBusy(false);
@@ -1326,15 +1654,24 @@ export default function App() {
     setLastDice(null);
     setIsDouble(false);
     setDoubleCount(0);
+    doubleCountRef.current = 0;
     setIsRolling(false);
     setIsTumbling(false);
     setIsTurnBusy(false);
     setGameLogs([]);
 
+    // Initialize timer countdown if set
+    if (config.timeLimitMinutes) {
+      setRemainingSeconds(config.timeLimitMinutes * 60);
+    } else {
+      setRemainingSeconds(null);
+    }
+
     const totalCount = config.humanCount + config.aiCount;
     const humanNamesStr = names.join(', ');
     const speedLabel = config.speed === 'slow' ? '느림 (여유로움)' : config.speed === 'fast' ? '빠르게 (스피드)' : '보통 (추천)';
-    addLog(0, `🎲 [${humanNamesStr}] 님이 참여하는 부루마블 게임이 시작되었습니다! (총 ${totalCount}인, 속도: ${speedLabel})`, 'event');
+    const timeLabel = config.timeLimitMinutes ? `${config.timeLimitMinutes}분` : '무제한';
+    addLog(0, `🎲 [${humanNamesStr}] 님이 참여하는 부루마블 게임이 시작되었습니다! (총 ${totalCount}인, 속도: ${speedLabel}, 제한시간: ${timeLabel})`, 'event');
 
     setGameState('playing');
     setTurnBannerVisible(true);
@@ -1372,10 +1709,18 @@ export default function App() {
     setLastDice(null);
     setIsDouble(false);
     setDoubleCount(0);
+    doubleCountRef.current = 0;
     setIsRolling(false);
     setIsTumbling(false);
     setIsTurnBusy(false);
     setGameLogs([]);
+
+    if (gameConfig.timeLimitMinutes) {
+      setRemainingSeconds(gameConfig.timeLimitMinutes * 60);
+    } else {
+      setRemainingSeconds(null);
+    }
+
     addLog(0, "✨ 새 게임이 시작되었습니다! 행운을 빕니다.", "event");
     setTurnBannerVisible(true);
     registerTimer(() => setTurnBannerVisible(false), speedConfig.bannerDurationMs);
@@ -1389,6 +1734,7 @@ export default function App() {
     setIsTurnBusy(false);
     setActiveModal(null);
     setGameOverData(null);
+    setDebtModalData(null);
     setGameState('setup');
   };
 
@@ -1460,6 +1806,8 @@ export default function App() {
           onChangeSpeed={handleChangeSpeed}
           socialFund={socialFund}
           currentTurnCount={turnCount}
+          remainingSeconds={remainingSeconds}
+          onRepayDebt={handleRepayDebt}
         />
       </div>
 
@@ -1512,7 +1860,22 @@ export default function App() {
         />
       )}
 
-      {/* 3. Golden Key Modal */}
+      {/* 3. Emergency Debt & Property Sale Modal (Rescue mechanism) */}
+      {activeModal === 'debt' && debtModalData && (
+        <EmergencyDebtModal
+          payer={debtModalData.payer}
+          debtAmount={debtModalData.debtAmount}
+          recipient={debtModalData.recipient}
+          reasonText={debtModalData.reasonText}
+          spaces={BOARD_SPACES}
+          cells={cells}
+          onTakeLoan={handleConfirmLoan}
+          onSellProperties={handleConfirmSellProperties}
+          onBankrupt={handleVoluntaryBankruptcy}
+        />
+      )}
+
+      {/* 4. Golden Key Modal */}
       {activeModal === 'golden_key' && currentGoldenKey && (
         <GoldenKeyModal
           card={currentGoldenKey}
@@ -1520,7 +1883,7 @@ export default function App() {
         />
       )}
 
-      {/* 4. Space Travel Modal */}
+      {/* 5. Space Travel Modal */}
       {activeModal === 'space_travel' && (
         <SpaceTravelModal
           spaces={BOARD_SPACES}
@@ -1530,7 +1893,7 @@ export default function App() {
         />
       )}
 
-      {/* 5. Game Over / Victory Modal */}
+      {/* 6. Game Over / Victory Modal */}
       {activeModal === 'game_over' && gameOverData && (
         <GameOverModal
           winner={gameOverData.winner}

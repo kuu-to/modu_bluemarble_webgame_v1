@@ -102,7 +102,9 @@ export function createPlayersForMode(
       hasIslandEscapeCard: 0,
       spaceTravelQueued: false,
       isBankrupt: false,
-      ownedCityCount: 0
+      ownedCityCount: 0,
+      debt: 0,
+      hasUsedLoan: false
     });
   }
 

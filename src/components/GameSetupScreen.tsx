@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { HumanCountOption, GameModeConfig, GameSpeed } from '../types';
+import { HumanCountOption, GameModeConfig, GameSpeed, TimeLimitOption } from '../types';
 import { PLAYER_PRESETS } from '../utils/playerPresets';
-import { Users, Bot, UserCheck, Play, Sparkles, Trophy, Globe, Shield, Gauge, Zap, Clock, FastForward } from 'lucide-react';
+import { Users, Bot, UserCheck, Play, Sparkles, Trophy, Globe, Shield, Gauge, Clock, FastForward, Timer } from 'lucide-react';
 
 interface GameSetupScreenProps {
   onStartGame: (config: GameModeConfig, playerNames: string[]) => void;
@@ -12,6 +12,7 @@ export const GameSetupScreen: React.FC<GameSetupScreenProps> = ({ onStartGame })
   const [humanCount, setHumanCount] = useState<HumanCountOption>(2);
   const [aiCount, setAiCount] = useState<number>(0);
   const [speed, setSpeed] = useState<GameSpeed>('normal'); // Default to normal for comfortable play
+  const [timeLimit, setTimeLimit] = useState<TimeLimitOption>(60); // Default to 60 minutes
   
   // Custom names for players 1..4 (human and AI)
   const [playerNames, setPlayerNames] = useState<Record<number, string>>({});
@@ -50,7 +51,7 @@ export const GameSetupScreen: React.FC<GameSetupScreenProps> = ({ onStartGame })
     }
 
     onStartGame(
-      { humanCount, aiCount, speed },
+      { humanCount, aiCount, speed, timeLimitMinutes: timeLimit },
       resolvedNames
     );
   };
@@ -307,7 +308,7 @@ export const GameSetupScreen: React.FC<GameSetupScreenProps> = ({ onStartGame })
                   label: '느림',
                   tag: '여유롭게',
                   icon: Clock,
-                  desc: '말 이동 320ms, AI 턴 2.2초 대기\n초보 및 상황 관전 추천',
+                  desc: '말 이동 260ms, AI 턴 1.8초 대기\n초보 및 상황 관전 추천',
                   color: 'from-amber-500/20 to-orange-500/10 border-amber-500/40 text-amber-300'
                 },
                 {
@@ -315,7 +316,7 @@ export const GameSetupScreen: React.FC<GameSetupScreenProps> = ({ onStartGame })
                   label: '보통',
                   tag: '추천 기본값',
                   icon: Gauge,
-                  desc: '말 이동 220ms, AI 턴 1.5초 대기\n자연스럽고 쾌적한 템포',
+                  desc: '말 이동 180ms, AI 턴 1.1초 대기\n자연스럽고 쾌적한 템포',
                   color: 'from-emerald-500/20 to-teal-500/10 border-emerald-400 text-emerald-300'
                 },
                 {
@@ -323,7 +324,7 @@ export const GameSetupScreen: React.FC<GameSetupScreenProps> = ({ onStartGame })
                   label: '빠르게',
                   tag: '스피드 대결',
                   icon: FastForward,
-                  desc: '말 이동 130ms, AI 턴 0.8초 대기\n기다림 없이 빠른 전개',
+                  desc: '말 이동 120ms, AI 턴 0.6초 대기\n기다림 없이 빠른 전개',
                   color: 'from-cyan-500/20 to-blue-500/10 border-cyan-400 text-cyan-300'
                 }
               ].map((opt) => {
@@ -360,6 +361,82 @@ export const GameSetupScreen: React.FC<GameSetupScreenProps> = ({ onStartGame })
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Step 5: Game Time Limit Selection (30분 / 60분 / 90분 / 무제한) */}
+          <div>
+            <label className="text-xs sm:text-sm font-bold text-slate-200 uppercase tracking-wider mb-2.5 flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-amber-400">
+                <Timer className="w-4 h-4" />
+                5단계: 게임 제한 시간 설정
+              </span>
+              <span className="text-xs text-amber-300 font-semibold">
+                {timeLimit === 30 ? '⚡ 30분 (빠르게/쾌속)' : timeLimit === 60 ? '⏱️ 60분 (보통)' : timeLimit === 90 ? '🏆 90분 (제대로 해보자)' : '♾️ 무제한'}
+              </span>
+            </label>
+
+            <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+              {[
+                {
+                  mins: 30 as TimeLimitOption,
+                  title: '빠르게/쾌속',
+                  timeStr: '30분',
+                  desc: '가볍고 빠른 스피드 한판',
+                  color: 'from-amber-500/20 to-orange-500/10 border-amber-500/40 text-amber-300'
+                },
+                {
+                  mins: 60 as TimeLimitOption,
+                  title: '보통 (권장)',
+                  timeStr: '60분',
+                  desc: '정석적인 표준 승부',
+                  color: 'from-emerald-500/20 to-teal-500/10 border-emerald-400 text-emerald-300'
+                },
+                {
+                  mins: 90 as TimeLimitOption,
+                  title: '제대로 해보자',
+                  timeStr: '90분',
+                  desc: '깊이 있는 진검 승부',
+                  color: 'from-purple-500/20 to-indigo-500/10 border-purple-400 text-purple-300'
+                }
+              ].map((opt) => {
+                const isSelected = timeLimit === opt.mins;
+
+                return (
+                  <button
+                    key={opt.mins}
+                    type="button"
+                    onClick={() => setTimeLimit(opt.mins)}
+                    className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-between ${
+                      isSelected
+                        ? `bg-gradient-to-b ${opt.color} shadow-[0_0_18px_rgba(245,158,11,0.3)] ring-1 ring-white/30 scale-[1.02]`
+                        : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-bold text-sm sm:text-base">
+                      <Timer className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
+                      <span className={isSelected ? 'text-white font-extrabold' : ''}>{opt.timeStr}</span>
+                    </div>
+
+                    <div className="my-1">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${
+                        isSelected ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
+                      }`}>
+                        {opt.title}
+                      </span>
+                    </div>
+
+                    <div className="text-[10.5px] text-slate-400 leading-tight mt-1">
+                      {opt.desc}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-2 text-[11px] text-slate-400 bg-slate-900/60 p-2 rounded-xl border border-slate-800/80 flex items-center gap-1.5">
+              <span>💡</span>
+              <span>제한 시간이 종료되면 <strong>(땅 + 건물 + 현금 - 빚)</strong>을 합산한 총 자산이 가장 많은 사람이 최종 1위로 승리합니다.</span>
             </div>
           </div>
 

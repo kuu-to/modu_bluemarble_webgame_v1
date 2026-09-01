@@ -30,57 +30,66 @@ export function decideAIBuilding(
   const spendable = remainingCash - reserveBuffer;
 
   if (isUnowned) {
+    // 1. Initial purchase: Buy land first
     if (space.price && space.price <= spendable) {
       buyLand = true;
       totalCost += space.price;
 
       if (space.isSpecialLand) {
-        // For special land, maybe buy landmark right away if rich
-        if (space.landmarkPrice && (totalCost + space.landmarkPrice <= spendable)) {
-          buyLandmark = true;
-          totalCost += space.landmarkPrice;
-        }
+        // Special land (like Jeju): No landmark on first purchase! Must be unowned land only
+        buyLandmark = false;
       } else {
-        // Try to buy Villa, Building, Hotel up to budget
+        // Normal city: Strictly sequential Villa -> Building -> Hotel (NO landmark on first purchase!)
         if (space.villaPrice && (totalCost + space.villaPrice <= spendable)) {
           buyVilla = true;
           totalCost += space.villaPrice;
-        }
-        if (space.buildingPrice && (totalCost + space.buildingPrice <= spendable)) {
-          buyBuilding = true;
-          totalCost += space.buildingPrice;
-        }
-        if (space.hotelPrice && (totalCost + space.hotelPrice <= spendable)) {
-          buyHotel = true;
-          totalCost += space.hotelPrice;
+
+          if (space.buildingPrice && (totalCost + space.buildingPrice <= spendable)) {
+            buyBuilding = true;
+            totalCost += space.buildingPrice;
+
+            if (space.hotelPrice && (totalCost + space.hotelPrice <= spendable)) {
+              buyHotel = true;
+              totalCost += space.hotelPrice;
+            }
+          }
         }
       }
     }
   } else if (isOwner) {
-    // Upgrades
+    // 2. Upgrades on subsequent visits: Strictly respect hierarchy
     if (space.isSpecialLand) {
-      if (!currentState.buildings.isLandmark && space.landmarkPrice && space.landmarkPrice <= spendable) {
+      if (!currentState.buildings.isLandmark && space.landmarkPrice && (totalCost + space.landmarkPrice <= spendable)) {
         buyLandmark = true;
         totalCost += space.landmarkPrice;
       }
     } else {
-      if (!currentState.buildings.hasVilla && space.villaPrice && (totalCost + space.villaPrice <= spendable)) {
+      // Step 1: Ensure Villa is built
+      let currentHasVilla = currentState.buildings.hasVilla;
+      if (!currentHasVilla && space.villaPrice && (totalCost + space.villaPrice <= spendable)) {
         buyVilla = true;
+        currentHasVilla = true;
         totalCost += space.villaPrice;
       }
-      if (!currentState.buildings.hasBuilding && space.buildingPrice && (totalCost + space.buildingPrice <= spendable)) {
+
+      // Step 2: Ensure Building is built (requires Villa)
+      let currentHasBuilding = currentState.buildings.hasBuilding;
+      if (currentHasVilla && !currentHasBuilding && space.buildingPrice && (totalCost + space.buildingPrice <= spendable)) {
         buyBuilding = true;
+        currentHasBuilding = true;
         totalCost += space.buildingPrice;
       }
-      if (!currentState.buildings.hasHotel && space.hotelPrice && (totalCost + space.hotelPrice <= spendable)) {
+
+      // Step 3: Ensure Hotel is built (requires Building)
+      let currentHasHotel = currentState.buildings.hasHotel;
+      if (currentHasBuilding && !currentHasHotel && space.hotelPrice && (totalCost + space.hotelPrice <= spendable)) {
         buyHotel = true;
+        currentHasHotel = true;
         totalCost += space.hotelPrice;
       }
-      // If all 3 built or ready, consider landmark
-      const willHaveAll3 = (currentState.buildings.hasVilla || buyVilla) &&
-                           (currentState.buildings.hasBuilding || buyBuilding) &&
-                           (currentState.buildings.hasHotel || buyHotel);
-      if (willHaveAll3 && !currentState.buildings.isLandmark && space.landmarkPrice && (totalCost + space.landmarkPrice <= spendable)) {
+
+      // Step 4: Upgrade to Landmark (requires Hotel + Building + Villa)
+      if (currentHasHotel && !currentState.buildings.isLandmark && space.landmarkPrice && (totalCost + space.landmarkPrice <= spendable)) {
         buyLandmark = true;
         totalCost += space.landmarkPrice;
       }

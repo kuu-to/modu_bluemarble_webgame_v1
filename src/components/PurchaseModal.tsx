@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { SpaceData, CellState, Player } from '../types';
 import { calculateToll } from '../data/boardData';
-import { Building2, Home, Landmark, Hotel, Check, X, ShieldAlert, Sparkles } from 'lucide-react';
+import { Building2, Home, Landmark, Hotel, Check, X, ShieldAlert, Sparkles, AlertCircle } from 'lucide-react';
 import { CountryFlag, CITY_COUNTRY_CODES } from './CountryFlag';
 
 interface PurchaseModalProps {
@@ -29,55 +29,122 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
   const hotelCost = space.hotelPrice || Math.round(basePrice * 1.5);
   const landmarkCost = space.landmarkPrice || Math.round(basePrice * 2.5);
 
-  const initialCanLandmark = (cellState.buildings.hasVilla && cellState.buildings.hasBuilding && cellState.buildings.hasHotel) || isSpecial;
+  // Existing states
+  const hasVilla = cellState.buildings.hasVilla;
+  const hasBuilding = cellState.buildings.hasBuilding;
+  const hasHotel = cellState.buildings.hasHotel;
+  const hasLandmark = cellState.buildings.isLandmark;
 
-  // Selected buildings to buy in this transaction
-  const [buyLand, setBuyLand] = useState<boolean>(isUnowned);
-  
-  // Intelligent auto-selection based on affordability
+  // STRICT HIERARCHY RULES:
+  // 1. Initial purchase (isUnowned): Landmark CANNOT be built on first purchase for any normal city!
+  // 2. Sequential hierarchy: Villa -> Building -> Hotel -> Landmark.
+  //    Cannot build Building without Villa.
+  //    Cannot build Hotel without Building (and Villa).
+  //    Cannot build Landmark without Hotel (and Building, Villa) AND must already own the land.
+
+  // Current selection states
   const [buyVilla, setBuyVilla] = useState<boolean>(() => {
-    if (isSpecial || cellState.buildings.hasVilla || cellState.buildings.isLandmark) return false;
-    const requiredMoney = (isUnowned ? basePrice : 0) + villaCost;
-    return player.money >= requiredMoney;
+    if (isSpecial || hasVilla || hasLandmark) return false;
+    const required = (isUnowned ? basePrice : 0) + villaCost;
+    return player.money >= required;
   });
 
   const [buyBuilding, setBuyBuilding] = useState<boolean>(() => {
-    if (isSpecial || cellState.buildings.hasBuilding || cellState.buildings.isLandmark) return false;
-    const requiredMoney = (isUnowned ? basePrice : 0) + (cellState.buildings.hasVilla ? 0 : villaCost) + buildingCost;
-    return player.money >= requiredMoney;
+    if (isSpecial || hasBuilding || hasLandmark) return false;
+    const required = (isUnowned ? basePrice : 0) + (hasVilla ? 0 : villaCost) + buildingCost;
+    // Auto select building only if villa is also affordable
+    return player.money >= required;
   });
 
   const [buyHotel, setBuyHotel] = useState<boolean>(() => {
-    if (isSpecial || cellState.buildings.hasHotel || cellState.buildings.isLandmark) return false;
-    const requiredMoney = (isUnowned ? basePrice : 0) + (cellState.buildings.hasVilla ? 0 : villaCost) + (cellState.buildings.hasBuilding ? 0 : buildingCost) + hotelCost;
-    return player.money >= requiredMoney;
+    if (isSpecial || hasHotel || hasLandmark) return false;
+    const required = (isUnowned ? basePrice : 0) + (hasVilla ? 0 : villaCost) + (hasBuilding ? 0 : buildingCost) + hotelCost;
+    return player.money >= required;
   });
 
   const [buyLandmark, setBuyLandmark] = useState<boolean>(() => {
-    if (cellState.buildings.isLandmark) return false;
+    if (hasLandmark) return false;
     if (isSpecial) {
-      const requiredMoney = (isUnowned ? basePrice : 0) + landmarkCost;
-      return player.money >= requiredMoney;
+      return !isUnowned && player.money >= landmarkCost;
     }
-    if (initialCanLandmark) {
-      return player.money >= landmarkCost;
-    }
-    return false;
+    // Normal city: ONLY upgradable to Landmark if already owned and has all 3 (or not first purchase)
+    if (isUnowned) return false; // STRICT RULE: Never on first purchase
+    const alreadyHasAll3 = hasVilla && hasBuilding && hasHotel;
+    return alreadyHasAll3 && player.money >= landmarkCost;
   });
+
+  // Strict cascading hierarchy handlers
+  const handleToggleVilla = () => {
+    if (hasVilla || hasLandmark) return;
+    if (buyVilla) {
+      // Turning off villa MUST also turn off building and hotel (hierarchy)
+      setBuyVilla(false);
+      setBuyBuilding(false);
+      setBuyHotel(false);
+      setBuyLandmark(false);
+    } else {
+      setBuyVilla(true);
+    }
+  };
+
+  const handleToggleBuilding = () => {
+    if (hasBuilding || hasLandmark) return;
+    if (buyBuilding) {
+      // Turning off building MUST also turn off hotel and landmark
+      setBuyBuilding(false);
+      setBuyHotel(false);
+      setBuyLandmark(false);
+    } else {
+      // Turning on building MUST also ensure Villa is built or bought
+      if (!hasVilla) setBuyVilla(true);
+      setBuyBuilding(true);
+    }
+  };
+
+  const handleToggleHotel = () => {
+    if (hasHotel || hasLandmark) return;
+    if (buyHotel) {
+      // Turning off hotel MUST also turn off landmark
+      setBuyHotel(false);
+      setBuyLandmark(false);
+    } else {
+      // Turning on hotel MUST also ensure Villa & Building are built or bought
+      if (!hasVilla) setBuyVilla(true);
+      if (!hasBuilding) setBuyBuilding(true);
+      setBuyHotel(true);
+    }
+  };
+
+  const handleToggleLandmark = () => {
+    if (hasLandmark || isUnowned) return; // Unowned cannot build landmark
+    if (isSpecial) {
+      setBuyLandmark(!buyLandmark);
+      return;
+    }
+    if (buyLandmark) {
+      setBuyLandmark(false);
+    } else {
+      // Normal city: Landmark can only be built if all 3 exist or are being bought
+      if (!hasVilla) setBuyVilla(true);
+      if (!hasBuilding) setBuyBuilding(true);
+      if (!hasHotel) setBuyHotel(true);
+      setBuyLandmark(true);
+    }
+  };
 
   // Compute total cost
   let totalCost = 0;
-  if (isUnowned && buyLand) totalCost += basePrice;
-  if (buyVilla && !cellState.buildings.hasVilla) totalCost += villaCost;
-  if (buyBuilding && !cellState.buildings.hasBuilding) totalCost += buildingCost;
-  if (buyHotel && !cellState.buildings.hasHotel) totalCost += hotelCost;
-  if (buyLandmark && !cellState.buildings.isLandmark) totalCost += landmarkCost;
+  if (isUnowned) totalCost += basePrice;
+  if (buyVilla && !hasVilla) totalCost += villaCost;
+  if (buyBuilding && !hasBuilding) totalCost += buildingCost;
+  if (buyHotel && !hasHotel) totalCost += hotelCost;
+  if (buyLandmark && !hasLandmark) totalCost += landmarkCost;
 
   const simulatedBuildings = {
-    hasVilla: cellState.buildings.hasVilla || buyVilla,
-    hasBuilding: cellState.buildings.hasBuilding || buyBuilding,
-    hasHotel: cellState.buildings.hasHotel || buyHotel,
-    isLandmark: cellState.buildings.isLandmark || buyLandmark
+    hasVilla: hasVilla || buyVilla,
+    hasBuilding: hasBuilding || buyBuilding,
+    hasHotel: hasHotel || buyHotel,
+    isLandmark: hasLandmark || buyLandmark
   };
 
   const estimatedToll = calculateToll({
@@ -121,7 +188,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
             )}
             <div>
               <div className="text-xs font-semibold text-white/80 uppercase tracking-wider flex items-center gap-1.5">
-                <span>{isUnowned ? '부동산 매입 & 건설' : '내 도시 건물 증축'}</span>
+                <span>{isUnowned ? '부동산 최초 매입 & 건설' : '내 도시 건물 순차 증축'}</span>
                 {CITY_COUNTRY_CODES[space.id] && (
                   <span className="px-1.5 py-0.2 rounded bg-white/20 text-[10.5px] font-bold text-white">
                     {CITY_COUNTRY_CODES[space.id].countryName}
@@ -144,6 +211,12 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
 
         {/* Construction Options List */}
         <div className="p-4 space-y-2.5">
+          {/* Rule note badge */}
+          <div className="px-3 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700 text-[11px] text-slate-300 flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <span>건물 건설 순서: <strong>별장 ➔ 빌딩 ➔ 호텔 ➔ 랜드마크</strong> (순차 준수)</span>
+          </div>
+
           {/* Base Land item */}
           {isUnowned && (
             <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/80 border border-slate-700">
@@ -163,15 +236,17 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
           )}
 
           {isSpecial ? (
-            // Special land only has Landmark upgrade option
+            // Special land (Jeju, etc.) only has Landmark upgrade option (cannot on unowned)
             <div
-              onClick={() => !cellState.buildings.isLandmark && setBuyLandmark(!buyLandmark)}
-              className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
-                cellState.buildings.isLandmark
+              onClick={() => !isUnowned && !hasLandmark && handleToggleLandmark()}
+              className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                isUnowned
+                  ? 'bg-slate-900/50 border-slate-800 opacity-60 cursor-not-allowed'
+                  : hasLandmark
                   ? 'bg-amber-950/30 border-amber-500/40 opacity-70 cursor-not-allowed'
                   : buyLandmark
-                  ? 'bg-amber-500/20 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
-                  : 'bg-slate-800/60 border-slate-700 hover:border-slate-600'
+                  ? 'bg-amber-500/20 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.2)] cursor-pointer'
+                  : 'bg-slate-800/60 border-slate-700 hover:border-slate-600 cursor-pointer'
               }`}
             >
               <div className="flex items-center gap-3">
@@ -183,106 +258,102 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
                     <span>관광지 랜드마크</span>
                     <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-spin" />
                   </div>
-                  <div className="text-xs text-slate-400 font-num">비용: {landmarkCost}만 원</div>
+                  <div className="text-xs text-slate-400 font-num">
+                    {isUnowned ? '최초 매입 시 랜드마크 건설 불가 (재방문 시 증축)' : `비용: ${landmarkCost}만 원`}
+                  </div>
                 </div>
               </div>
 
               <div className={`w-6 h-6 rounded-lg flex items-center justify-center border ${
-                cellState.buildings.isLandmark ? 'bg-amber-500 border-amber-300' : buyLandmark ? 'bg-cyan-500 border-cyan-300 text-white' : 'border-slate-600'
+                hasLandmark ? 'bg-amber-500 border-amber-300' : buyLandmark ? 'bg-cyan-500 border-cyan-300 text-white' : 'border-slate-600'
               }`}>
-                {(cellState.buildings.isLandmark || buyLandmark) && <Check className="w-4 h-4" />}
+                {(hasLandmark || buyLandmark) && <Check className="w-4 h-4" />}
               </div>
             </div>
           ) : (
-            // Normal City: Villa, Building, Hotel, Landmark
+            // Normal City: Villa, Building, Hotel (Hierarchical order)
             <div className="grid grid-cols-3 gap-2">
-              {/* Villa */}
+              {/* 1. Villa (별장) */}
               <div
-                onClick={() => !cellState.buildings.hasVilla && setBuyVilla(!buyVilla)}
+                onClick={handleToggleVilla}
                 className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                  cellState.buildings.hasVilla
+                  hasVilla
                     ? 'bg-emerald-950/40 border-emerald-500/40 opacity-75'
                     : buyVilla
                     ? 'bg-cyan-500/20 border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.3)]'
                     : 'bg-slate-800/60 border-slate-700 hover:border-slate-600'
                 }`}
               >
-                <div className="text-xs font-bold text-slate-200 mb-1">🏡 별장</div>
+                <div className="text-xs font-bold text-slate-200 mb-1">🏡 1단계: 별장</div>
                 <div className="text-xs text-cyan-300 font-num font-bold">+{villaCost}만</div>
                 <div className="mt-1.5 flex justify-center">
                   <div className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] ${
-                    cellState.buildings.hasVilla || buyVilla ? 'bg-cyan-500 border-cyan-300 text-white' : 'border-slate-600'
+                    hasVilla || buyVilla ? 'bg-cyan-500 border-cyan-300 text-white' : 'border-slate-600'
                   }`}>
-                    {(cellState.buildings.hasVilla || buyVilla) && <Check className="w-3 h-3" />}
+                    {(hasVilla || buyVilla) && <Check className="w-3 h-3" />}
                   </div>
                 </div>
               </div>
 
-              {/* Building */}
+              {/* 2. Building (빌딩) - Requires Villa */}
               <div
-                onClick={() => !cellState.buildings.hasBuilding && setBuyBuilding(!buyBuilding)}
+                onClick={handleToggleBuilding}
                 className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                  cellState.buildings.hasBuilding
+                  hasBuilding
                     ? 'bg-emerald-950/40 border-emerald-500/40 opacity-75'
                     : buyBuilding
                     ? 'bg-cyan-500/20 border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.3)]'
                     : 'bg-slate-800/60 border-slate-700 hover:border-slate-600'
                 }`}
               >
-                <div className="text-xs font-bold text-slate-200 mb-1">🏢 빌딩</div>
+                <div className="text-xs font-bold text-slate-200 mb-1">🏢 2단계: 빌딩</div>
                 <div className="text-xs text-cyan-300 font-num font-bold">+{buildingCost}만</div>
                 <div className="mt-1.5 flex justify-center">
                   <div className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] ${
-                    cellState.buildings.hasBuilding || buyBuilding ? 'bg-cyan-500 border-cyan-300 text-white' : 'border-slate-600'
+                    hasBuilding || buyBuilding ? 'bg-cyan-500 border-cyan-300 text-white' : 'border-slate-600'
                   }`}>
-                    {(cellState.buildings.hasBuilding || buyBuilding) && <Check className="w-3 h-3" />}
+                    {(hasBuilding || buyBuilding) && <Check className="w-3 h-3" />}
                   </div>
                 </div>
               </div>
 
-              {/* Hotel */}
+              {/* 3. Hotel (호텔) - Requires Building */}
               <div
-                onClick={() => !cellState.buildings.hasHotel && setBuyHotel(!buyHotel)}
+                onClick={handleToggleHotel}
                 className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                  cellState.buildings.hasHotel
+                  hasHotel
                     ? 'bg-emerald-950/40 border-emerald-500/40 opacity-75'
                     : buyHotel
                     ? 'bg-cyan-500/20 border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.3)]'
                     : 'bg-slate-800/60 border-slate-700 hover:border-slate-600'
                 }`}
               >
-                <div className="text-xs font-bold text-slate-200 mb-1">🏨 호텔</div>
+                <div className="text-xs font-bold text-slate-200 mb-1">🏨 3단계: 호텔</div>
                 <div className="text-xs text-cyan-300 font-num font-bold">+{hotelCost}만</div>
                 <div className="mt-1.5 flex justify-center">
                   <div className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] ${
-                    cellState.buildings.hasHotel || buyHotel ? 'bg-cyan-500 border-cyan-300 text-white' : 'border-slate-600'
+                    hasHotel || buyHotel ? 'bg-cyan-500 border-cyan-300 text-white' : 'border-slate-600'
                   }`}>
-                    {(cellState.buildings.hasHotel || buyHotel) && <Check className="w-3 h-3" />}
+                    {(hasHotel || buyHotel) && <Check className="w-3 h-3" />}
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Landmark Option for normal cities if all 3 built or being built */}
+          {/* 4. Landmark Option for normal cities */}
+          {/* Rule: Unowned land CANNOT build landmark. Must be second or third visit after full hotel build */}
           {!isSpecial && (
             <div
-              onClick={() => {
-                const canLandmark = (cellState.buildings.hasVilla || buyVilla) &&
-                                    (cellState.buildings.hasBuilding || buyBuilding) &&
-                                    (cellState.buildings.hasHotel || buyHotel);
-                if (canLandmark && !cellState.buildings.isLandmark) {
-                  setBuyLandmark(!buyLandmark);
-                }
-              }}
+              onClick={() => !isUnowned && !hasLandmark && handleToggleLandmark()}
               className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
-                cellState.buildings.isLandmark
-                  ? 'bg-amber-950/40 border-amber-500/40 opacity-80'
+                isUnowned
+                  ? 'bg-slate-900/50 border-slate-800 opacity-50 cursor-not-allowed'
+                  : hasLandmark
+                  ? 'bg-amber-950/40 border-amber-500/40 opacity-80 cursor-not-allowed'
                   : buyLandmark
-                  ? 'bg-amber-500/25 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.3)]'
-                  : (cellState.buildings.hasVilla || buyVilla) && (cellState.buildings.hasBuilding || buyBuilding) && (cellState.buildings.hasHotel || buyHotel)
-                  ? 'bg-slate-800/70 border-amber-500/40 cursor-pointer hover:border-amber-400'
-                  : 'bg-slate-900/50 border-slate-800 opacity-50 cursor-not-allowed'
+                  ? 'bg-amber-500/25 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.3)] cursor-pointer'
+                  : 'bg-slate-800/70 border-amber-500/40 cursor-pointer hover:border-amber-400'
               }`}
             >
               <div className="flex items-center gap-3">
@@ -291,18 +362,20 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
                 </div>
                 <div>
                   <div className="font-bold text-sm text-amber-300 flex items-center gap-1.5">
-                    <span>👑 랜드마크 건설 (인수 불가)</span>
+                    <span>👑 4단계: 랜드마크 건설 (인수 불가)</span>
                   </div>
                   <div className="text-xs text-slate-400 font-num">
-                    비용: {landmarkCost}만 원 (별장+빌딩+호텔 필수)
+                    {isUnowned
+                      ? '최초 땅 구매 시에는 랜드마크 건설 불가 (재방문 시 증축 가능)'
+                      : `비용: ${landmarkCost}만 원 (별장+빌딩+호텔 완공 후 가능)`}
                   </div>
                 </div>
               </div>
 
               <div className={`w-5 h-5 rounded flex items-center justify-center border text-[10px] ${
-                cellState.buildings.isLandmark || buyLandmark ? 'bg-amber-500 border-amber-300 text-slate-950 font-bold' : 'border-slate-600'
+                hasLandmark || buyLandmark ? 'bg-amber-500 border-amber-300 text-slate-950 font-bold' : 'border-slate-600'
               }`}>
-                {(cellState.buildings.isLandmark || buyLandmark) && <Check className="w-3.5 h-3.5" />}
+                {(hasLandmark || buyLandmark) && <Check className="w-3.5 h-3.5" />}
               </div>
             </div>
           )}

@@ -48,6 +48,8 @@ export interface Player {
   spaceTravelQueued: boolean;
   isBankrupt: boolean;
   ownedCityCount: number;
+  debt: number; // 빚 누적액 (만 원)
+  hasUsedLoan: boolean; // 최초 1회 대출 사용 여부
 }
 
 export interface GoldenKeyCard {
@@ -118,10 +120,13 @@ export const SPEED_CONFIGS: Record<GameSpeed, GameSpeedSettings> = {
   }
 };
 
+export type TimeLimitOption = 30 | 60 | 90 | 0; // 0 = unlimited / normal
+
 export interface GameModeConfig {
   humanCount: HumanCountOption; // 2인, 3인, 4인 (인간 플레이어 수)
   aiCount: number; // 2인의 경우 0~2명, 3인의 경우 0~1명, 4인의 경우 0명
   speed?: GameSpeed; // 게임 진행 속도 ('slow' | 'normal' | 'fast')
+  timeLimitMinutes?: TimeLimitOption; // 제한 시간 (30분, 60분, 90분)
 }
 
 export type BroadcastCategory = 

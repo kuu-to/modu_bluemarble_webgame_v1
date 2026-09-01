@@ -14,7 +14,10 @@ import {
   AlertCircle,
   Gauge,
   Clock,
-  FastForward
+  FastForward,
+  Timer,
+  CreditCard,
+  Building
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -28,6 +31,8 @@ interface SidebarProps {
   onChangeSpeed?: (speed: GameSpeed) => void;
   socialFund: number;
   currentTurnCount: number;
+  remainingSeconds?: number | null; // Time limit countdown
+  onRepayDebt?: (playerId: number) => void; // Optional debt repayment
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -40,7 +45,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onExitToLobby,
   onChangeSpeed,
   socialFund,
-  currentTurnCount
+  currentTurnCount,
+  remainingSeconds = null,
+  onRepayDebt
 }) => {
   const logContainerRef = useRef<HTMLDivElement>(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
@@ -74,13 +81,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onChangeSpeed(nextSpeed[currentSpeed]);
   };
 
+  // Format time remaining MM:SS
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
   return (
     <aside className="w-full lg:w-80 flex flex-col gap-3 select-none">
       {/* Top Status & Controls Bar */}
       <div className="flex items-center justify-between p-2.5 rounded-2xl glass-panel border border-slate-800">
         {/* Match Info & In-game Speed Toggle */}
-        <div className="flex items-center gap-1.5">
-          <div className="px-2.5 py-1.5 rounded-xl bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 text-[11.5px] font-bold flex items-center gap-1 shadow-xs">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="px-2.5 py-1.5 rounded-xl bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold flex items-center gap-1 shadow-xs">
             <Users className="w-3.5 h-3.5 text-emerald-400" />
             <span>{getModeLabel()}</span>
           </div>
@@ -101,7 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {currentSpeed === 'slow' && <Clock className="w-3 h-3 text-amber-400" />}
               {currentSpeed === 'normal' && <Gauge className="w-3 h-3 text-emerald-400" />}
               {currentSpeed === 'fast' && <FastForward className="w-3 h-3 text-cyan-400" />}
-              <span>{currentSpeed === 'slow' ? '속도: 느림' : currentSpeed === 'normal' ? '속도: 보통' : '속도: 빠름'}</span>
+              <span>{currentSpeed === 'slow' ? '느림' : currentSpeed === 'normal' ? '보통' : '빠름'}</span>
             </button>
           )}
         </div>
@@ -131,6 +145,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Time Limit Countdown Bar (if configured) */}
+      {remainingSeconds !== null && (
+        <div className={`p-2.5 rounded-2xl border flex items-center justify-between transition-all ${
+          remainingSeconds < 300
+            ? 'bg-rose-950/60 border-rose-500/60 shadow-[0_0_15px_rgba(244,63,94,0.3)] animate-pulse'
+            : 'bg-indigo-950/50 border-indigo-500/40'
+        }`}>
+          <div className="flex items-center gap-2">
+            <Timer className={`w-4 h-4 ${remainingSeconds < 300 ? 'text-rose-400' : 'text-indigo-400'}`} />
+            <div>
+              <div className="text-[10px] font-bold text-slate-300 uppercase">남은 게임 시간</div>
+              <div className="text-[10.5px] text-slate-400">종료 시 총자산 1위 승리</div>
+            </div>
+          </div>
+          <div className={`text-lg font-black font-num ${
+            remainingSeconds < 300 ? 'text-rose-300' : 'text-indigo-300'
+          }`}>
+            {formatTime(remainingSeconds)}
+          </div>
+        </div>
+      )}
 
       {/* Exit Confirmation Dialog */}
       {showExitConfirm && (
@@ -211,7 +247,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {p.avatar}
                 </div>
 
-                <div>
+                <div className="flex-1">
                   <div className="flex items-center gap-1.5">
                     <span className="font-bold text-sm text-white">
                       {p.name}
@@ -247,13 +283,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="p-1.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
                   <div className="text-[9.5px] text-slate-400 flex items-center gap-1">
                     <TrendingUp className="w-2.5 h-2.5 text-cyan-400" />
-                    <span>총 자산</span>
+                    <span>총 자산 (순자산)</span>
                   </div>
                   <div className="text-sm font-extrabold text-cyan-300 font-num leading-tight mt-0.5">
                     {p.totalAssets}만 원
                   </div>
                 </div>
               </div>
+
+              {/* Debt & Loan status info */}
+              {p.debt > 0 && (
+                <div className="mt-1.5 p-1.5 rounded-xl bg-red-950/40 border border-red-500/40 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1 text-red-300 text-[10.5px]">
+                    <CreditCard className="w-3 h-3 text-red-400" />
+                    <span>누적 대출 빚:</span>
+                    <strong className="text-red-200 font-num">{p.debt}만 원</strong>
+                  </div>
+
+                  {!p.isAI && p.money >= p.debt && onRepayDebt && (
+                    <button
+                      onClick={() => onRepayDebt(p.id)}
+                      className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-[10px] font-bold text-white cursor-pointer shadow"
+                    >
+                      빚 갚기
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
