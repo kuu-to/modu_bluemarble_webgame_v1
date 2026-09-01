@@ -279,6 +279,17 @@ class SoundEffects {
       t += n.d * 0.85;
     });
   }
+
+  // Stop all active audio / silence context
+  stopAll() {
+    if (this.ctx && this.ctx.state !== 'closed') {
+      try {
+        this.ctx.suspend();
+      } catch {
+        // ignore
+      }
+    }
+  }
 }
 
 export const soundManager = new SoundEffects();

@@ -87,34 +87,34 @@ export interface GameSpeedSettings {
 
 export const SPEED_CONFIGS: Record<GameSpeed, GameSpeedSettings> = {
   slow: {
-    stepIntervalMs: 320,
-    arrivalPauseMs: 2500,
-    aiThinkDelayMs: 3200,
-    aiActionDelayMs: 2000,
-    modalActionDelayMs: 5000,
-    bannerDurationMs: 2800,
-    diceRollTicks: 12,
-    diceRollIntervalMs: 85
+    stepIntervalMs: 260,
+    arrivalPauseMs: 1200,
+    aiThinkDelayMs: 1800,
+    aiActionDelayMs: 1600,
+    modalActionDelayMs: 3400,
+    bannerDurationMs: 2200,
+    diceRollTicks: 10,
+    diceRollIntervalMs: 75
   },
   normal: {
-    stepIntervalMs: 220,
-    arrivalPauseMs: 1800,
-    aiThinkDelayMs: 2200,
-    aiActionDelayMs: 1500,
-    modalActionDelayMs: 3600,
-    bannerDurationMs: 2200,
-    diceRollTicks: 8,
-    diceRollIntervalMs: 65
+    stepIntervalMs: 180,
+    arrivalPauseMs: 800,
+    aiThinkDelayMs: 1100,
+    aiActionDelayMs: 1100,
+    modalActionDelayMs: 2400,
+    bannerDurationMs: 1800,
+    diceRollTicks: 7,
+    diceRollIntervalMs: 60
   },
   fast: {
-    stepIntervalMs: 140,
-    arrivalPauseMs: 1000,
-    aiThinkDelayMs: 1200,
-    aiActionDelayMs: 800,
-    modalActionDelayMs: 2000,
-    bannerDurationMs: 1400,
-    diceRollTicks: 6,
-    diceRollIntervalMs: 50
+    stepIntervalMs: 120,
+    arrivalPauseMs: 500,
+    aiThinkDelayMs: 600,
+    aiActionDelayMs: 600,
+    modalActionDelayMs: 1300,
+    bannerDurationMs: 1100,
+    diceRollTicks: 5,
+    diceRollIntervalMs: 45
   }
 };
 

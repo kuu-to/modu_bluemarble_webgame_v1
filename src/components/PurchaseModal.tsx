@@ -23,20 +23,55 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
   const isUnowned = cellState.owner === null;
   const isSpecial = !!space.isSpecialLand;
 
+  const basePrice = space.price || (isSpecial ? 20 : 10);
+  const villaCost = space.villaPrice || Math.round(basePrice * 0.5);
+  const buildingCost = space.buildingPrice || basePrice;
+  const hotelCost = space.hotelPrice || Math.round(basePrice * 1.5);
+  const landmarkCost = space.landmarkPrice || Math.round(basePrice * 2.5);
+
+  const initialCanLandmark = (cellState.buildings.hasVilla && cellState.buildings.hasBuilding && cellState.buildings.hasHotel) || isSpecial;
+
   // Selected buildings to buy in this transaction
   const [buyLand, setBuyLand] = useState<boolean>(isUnowned);
-  const [buyVilla, setBuyVilla] = useState<boolean>(!isSpecial && !cellState.buildings.hasVilla && !cellState.buildings.isLandmark);
-  const [buyBuilding, setBuyBuilding] = useState<boolean>(!isSpecial && !cellState.buildings.hasBuilding && !cellState.buildings.isLandmark);
-  const [buyHotel, setBuyHotel] = useState<boolean>(!isSpecial && !cellState.buildings.hasHotel && !cellState.buildings.isLandmark);
-  const [buyLandmark, setBuyLandmark] = useState<boolean>(isSpecial ? !cellState.buildings.isLandmark : false);
+  
+  // Intelligent auto-selection based on affordability
+  const [buyVilla, setBuyVilla] = useState<boolean>(() => {
+    if (isSpecial || cellState.buildings.hasVilla || cellState.buildings.isLandmark) return false;
+    const requiredMoney = (isUnowned ? basePrice : 0) + villaCost;
+    return player.money >= requiredMoney;
+  });
+
+  const [buyBuilding, setBuyBuilding] = useState<boolean>(() => {
+    if (isSpecial || cellState.buildings.hasBuilding || cellState.buildings.isLandmark) return false;
+    const requiredMoney = (isUnowned ? basePrice : 0) + (cellState.buildings.hasVilla ? 0 : villaCost) + buildingCost;
+    return player.money >= requiredMoney;
+  });
+
+  const [buyHotel, setBuyHotel] = useState<boolean>(() => {
+    if (isSpecial || cellState.buildings.hasHotel || cellState.buildings.isLandmark) return false;
+    const requiredMoney = (isUnowned ? basePrice : 0) + (cellState.buildings.hasVilla ? 0 : villaCost) + (cellState.buildings.hasBuilding ? 0 : buildingCost) + hotelCost;
+    return player.money >= requiredMoney;
+  });
+
+  const [buyLandmark, setBuyLandmark] = useState<boolean>(() => {
+    if (cellState.buildings.isLandmark) return false;
+    if (isSpecial) {
+      const requiredMoney = (isUnowned ? basePrice : 0) + landmarkCost;
+      return player.money >= requiredMoney;
+    }
+    if (initialCanLandmark) {
+      return player.money >= landmarkCost;
+    }
+    return false;
+  });
 
   // Compute total cost
   let totalCost = 0;
-  if (isUnowned && buyLand) totalCost += space.price || 0;
-  if (buyVilla && !cellState.buildings.hasVilla) totalCost += space.villaPrice || 0;
-  if (buyBuilding && !cellState.buildings.hasBuilding) totalCost += space.buildingPrice || 0;
-  if (buyHotel && !cellState.buildings.hasHotel) totalCost += space.hotelPrice || 0;
-  if (buyLandmark && !cellState.buildings.isLandmark) totalCost += space.landmarkPrice || 0;
+  if (isUnowned && buyLand) totalCost += basePrice;
+  if (buyVilla && !cellState.buildings.hasVilla) totalCost += villaCost;
+  if (buyBuilding && !cellState.buildings.hasBuilding) totalCost += buildingCost;
+  if (buyHotel && !cellState.buildings.hasHotel) totalCost += hotelCost;
+  if (buyLandmark && !cellState.buildings.isLandmark) totalCost += landmarkCost;
 
   const simulatedBuildings = {
     hasVilla: cellState.buildings.hasVilla || buyVilla,
@@ -45,7 +80,15 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
     isLandmark: cellState.buildings.isLandmark || buyLandmark
   };
 
-  const estimatedToll = calculateToll(space, simulatedBuildings);
+  const estimatedToll = calculateToll({
+    ...space,
+    price: basePrice,
+    villaPrice: villaCost,
+    buildingPrice: buildingCost,
+    hotelPrice: hotelCost,
+    landmarkPrice: landmarkCost
+  }, simulatedBuildings);
+
   const canAfford = player.money >= totalCost && totalCost > 0;
 
   const handlePurchase = () => {
@@ -110,7 +153,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
                 </div>
                 <div>
                   <div className="font-bold text-sm text-slate-200">기본 토지</div>
-                  <div className="text-xs text-slate-400 font-num">{space.price}만 원</div>
+                  <div className="text-xs text-slate-400 font-num">{basePrice}만 원</div>
                 </div>
               </div>
               <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 text-xs font-bold border border-blue-500/30">
@@ -140,7 +183,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
                     <span>관광지 랜드마크</span>
                     <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-spin" />
                   </div>
-                  <div className="text-xs text-slate-400 font-num">비용: {space.landmarkPrice}만 원</div>
+                  <div className="text-xs text-slate-400 font-num">비용: {landmarkCost}만 원</div>
                 </div>
               </div>
 
@@ -165,7 +208,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
                 }`}
               >
                 <div className="text-xs font-bold text-slate-200 mb-1">🏡 별장</div>
-                <div className="text-xs text-cyan-300 font-num font-bold">+{space.villaPrice}만</div>
+                <div className="text-xs text-cyan-300 font-num font-bold">+{villaCost}만</div>
                 <div className="mt-1.5 flex justify-center">
                   <div className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] ${
                     cellState.buildings.hasVilla || buyVilla ? 'bg-cyan-500 border-cyan-300 text-white' : 'border-slate-600'
@@ -187,7 +230,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
                 }`}
               >
                 <div className="text-xs font-bold text-slate-200 mb-1">🏢 빌딩</div>
-                <div className="text-xs text-cyan-300 font-num font-bold">+{space.buildingPrice}만</div>
+                <div className="text-xs text-cyan-300 font-num font-bold">+{buildingCost}만</div>
                 <div className="mt-1.5 flex justify-center">
                   <div className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] ${
                     cellState.buildings.hasBuilding || buyBuilding ? 'bg-cyan-500 border-cyan-300 text-white' : 'border-slate-600'
@@ -209,7 +252,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
                 }`}
               >
                 <div className="text-xs font-bold text-slate-200 mb-1">🏨 호텔</div>
-                <div className="text-xs text-cyan-300 font-num font-bold">+{space.hotelPrice}만</div>
+                <div className="text-xs text-cyan-300 font-num font-bold">+{hotelCost}만</div>
                 <div className="mt-1.5 flex justify-center">
                   <div className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] ${
                     cellState.buildings.hasHotel || buyHotel ? 'bg-cyan-500 border-cyan-300 text-white' : 'border-slate-600'
@@ -251,7 +294,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
                     <span>👑 랜드마크 건설 (인수 불가)</span>
                   </div>
                   <div className="text-xs text-slate-400 font-num">
-                    비용: {space.landmarkPrice}만 원 (별장+빌딩+호텔 필수)
+                    비용: {landmarkCost}만 원 (별장+빌딩+호텔 필수)
                   </div>
                 </div>
               </div>
