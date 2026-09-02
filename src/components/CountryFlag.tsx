@@ -291,7 +291,7 @@ export const CountryFlag: React.FC<CountryFlagProps> = ({ spaceId, className = '
   const svgFlag = SVG_FLAGS[code];
 
   const sizeClasses = {
-    sm: 'w-[22px] h-[15px] sm:w-[26px] sm:h-[17px]',
+    sm: 'w-[24px] h-[16px] sm:w-[28px] sm:h-[18px]',
     md: 'w-7 h-4.5 sm:w-8 sm:h-5',
     lg: 'w-9 h-6 sm:w-10 sm:h-6.5'
   }[size];

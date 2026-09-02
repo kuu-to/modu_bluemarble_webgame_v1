@@ -2045,7 +2045,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#08120a] text-slate-100 flex flex-col items-center justify-start p-2 sm:p-4 lg:p-6 overflow-x-hidden relative">
+    <div className="min-h-screen w-full bg-[#08120a] text-slate-100 flex flex-col items-center justify-start lg:justify-center p-2 sm:p-3 overflow-x-hidden relative">
       {/* Background Warm Tabletop Lighting & Board Felt Ambient Glow */}
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_35%,rgba(74,222,128,0.12),rgba(0,0,0,0.85))] pointer-events-none" />
       <div className="fixed -top-24 left-1/2 -translate-x-1/2 w-[700px] h-[700px] bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -2062,7 +2062,7 @@ export default function App() {
       />
 
       {/* Main Responsive Grid Container */}
-      <div className="w-full max-w-[1560px] mx-auto flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4 sm:gap-6 z-10">
+      <div className="w-full max-w-[1380px] mx-auto flex flex-col lg:flex-row items-center lg:items-center justify-center gap-3 sm:gap-5 z-10">
         {/* Left / Center Area: Board */}
         <main className="w-full flex-1 flex flex-col items-center justify-center">
           <Board

@@ -7,12 +7,12 @@ import { CountryFlag, CITY_COUNTRY_CODES } from './CountryFlag';
 
 const getCityNameClasses = (name: string) => {
   if (name === '퀸엘리자베스호' || name.length >= 7) {
-    return 'text-[6.5px] sm:text-[7.5px] font-black text-slate-900 tracking-tighter leading-none whitespace-nowrap font-display';
+    return 'text-[6px] sm:text-[7px] font-black text-slate-900 tracking-tighter leading-none whitespace-nowrap font-display';
   }
   if (name.length >= 5) {
-    return 'text-[8.5px] sm:text-[9.5px] font-black text-slate-900 tracking-tight leading-none whitespace-nowrap font-display';
+    return 'text-[9px] sm:text-[10.5px] font-black text-slate-900 tracking-tight leading-none whitespace-nowrap font-display';
   }
-  return 'text-[9.5px] sm:text-[11px] font-black text-slate-900 tracking-tight leading-none whitespace-nowrap font-display';
+  return 'text-[11px] sm:text-[12.5px] font-black text-slate-900 tracking-tight leading-none whitespace-nowrap font-display';
 };
 
 interface TileCellProps {
@@ -268,7 +268,7 @@ export const TileCell: React.FC<TileCellProps> = ({
 
           {/* 2. 중앙: 국기 + 도시 이름 (전체 컨테이너를 시계방향 90도 회전하여 북/남과 완벽히 동일한 자간 및 국기 정렬) */}
           <div className="flex-1 flex items-center justify-center p-0.5 text-center min-w-0 bg-white overflow-visible">
-            <div className="flex flex-col items-center justify-center gap-1 sm:gap-1.5 transform rotate-90 shrink-0 select-none">
+            <div className="flex flex-col items-center justify-center gap-1.5 sm:gap-2 transform rotate-90 shrink-0 select-none">
               <span className={getCityNameClasses(space.name)}>
                 {space.name}
               </span>
@@ -276,7 +276,7 @@ export const TileCell: React.FC<TileCellProps> = ({
                 {CITY_COUNTRY_CODES[space.id] ? (
                   <CountryFlag spaceId={space.id} size="sm" />
                 ) : (
-                  <span className="text-[10px] sm:text-xs leading-none">{space.icon || '📍'}</span>
+                  <span className="text-[11px] sm:text-[13px] leading-none">{space.icon || '📍'}</span>
                 )}
               </div>
             </div>
@@ -377,7 +377,7 @@ export const TileCell: React.FC<TileCellProps> = ({
 
           {/* 2. 중앙: 도시 이름 + 국기 (전체 컨테이너를 반시계방향 90도 회전하여 북/남과 완벽히 동일한 자간 및 국기 정렬) */}
           <div className="flex-1 flex items-center justify-center p-0.5 text-center min-w-0 bg-white overflow-visible">
-            <div className="flex flex-col items-center justify-center gap-1 sm:gap-1.5 transform -rotate-90 shrink-0 select-none">
+            <div className="flex flex-col items-center justify-center gap-1.5 sm:gap-2 transform -rotate-90 shrink-0 select-none">
               <span className={getCityNameClasses(space.name)}>
                 {space.name}
               </span>
@@ -385,7 +385,7 @@ export const TileCell: React.FC<TileCellProps> = ({
                 {CITY_COUNTRY_CODES[space.id] ? (
                   <CountryFlag spaceId={space.id} size="sm" />
                 ) : (
-                  <span className="text-[10px] sm:text-xs leading-none">{space.icon || '📍'}</span>
+                  <span className="text-[11px] sm:text-[13px] leading-none">{space.icon || '📍'}</span>
                 )}
               </div>
             </div>
@@ -419,7 +419,7 @@ export const TileCell: React.FC<TileCellProps> = ({
         // 🌟 4-C. 북쪽 (NORTH) 타일: [상단: 도시명 + 국기] | [중단: 가격/통행료] | [하단: 컴팩트 건물부지(가로3슬롯)] 🌟
         <div className="w-full h-full flex flex-col justify-between items-center relative overflow-hidden bg-white">
           {/* 1. 상단 (외곽): 도시 이름 & 국기 (여유로운 공간 확보로 겹침 방지 및 롱네임 대응) */}
-          <div className="w-full flex-1 flex flex-col items-center justify-center px-0.5 pt-0.5 pb-0.5 text-center min-h-0 bg-white gap-1 sm:gap-1.5 overflow-hidden">
+          <div className="w-full flex-1 flex flex-col items-center justify-center px-0.5 pt-0.5 pb-0.5 text-center min-h-0 bg-white gap-1.5 sm:gap-2 overflow-hidden">
             <span className={getCityNameClasses(space.name)}>
               {space.name}
             </span>
@@ -427,7 +427,7 @@ export const TileCell: React.FC<TileCellProps> = ({
               {CITY_COUNTRY_CODES[space.id] ? (
                 <CountryFlag spaceId={space.id} size="sm" />
               ) : (
-                <span className="text-[10px] sm:text-xs leading-none">{space.icon || '📍'}</span>
+                <span className="text-[11px] sm:text-[13px] leading-none">{space.icon || '📍'}</span>
               )}
             </div>
           </div>
@@ -546,7 +546,7 @@ export const TileCell: React.FC<TileCellProps> = ({
           </div>
 
           {/* 2. 중단: 도시 이름 & 국기 */}
-          <div className="w-full flex-1 flex flex-col items-center justify-center px-0.5 pt-0.5 pb-0.5 text-center min-h-0 bg-white gap-1 sm:gap-1.5 overflow-hidden">
+          <div className="w-full flex-1 flex flex-col items-center justify-center px-0.5 pt-0.5 pb-0.5 text-center min-h-0 bg-white gap-1.5 sm:gap-2 overflow-hidden">
             <span className={getCityNameClasses(space.name)}>
               {space.name}
             </span>
@@ -554,7 +554,7 @@ export const TileCell: React.FC<TileCellProps> = ({
               {CITY_COUNTRY_CODES[space.id] ? (
                 <CountryFlag spaceId={space.id} size="sm" />
               ) : (
-                <span className="text-[10px] sm:text-xs leading-none">{space.icon || '📍'}</span>
+                <span className="text-[11px] sm:text-[13px] leading-none">{space.icon || '📍'}</span>
               )}
             </div>
           </div>
