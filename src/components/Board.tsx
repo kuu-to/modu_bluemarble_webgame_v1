@@ -45,7 +45,7 @@ export const Board: React.FC<BoardProps> = ({
   const activePlayer = players[activePlayerIndex] || players[0];
 
   return (
-    <div className="relative w-full aspect-square max-w-[650px] lg:max-w-[700px] xl:max-w-[730px] max-h-[min(90vh,730px)] mx-auto p-1.5 sm:p-2.5 rounded-2xl bg-gradient-to-b from-[#1b3815] via-[#244b1c] to-[#162f11] border-4 border-[#3e6b2f] shadow-[0_10px_40px_rgba(0,0,0,0.6),inset_0_0_20px_rgba(0,0,0,0.5)] select-none">
+    <div className="relative w-full aspect-square max-w-[720px] lg:max-w-[760px] xl:max-w-[800px] 2xl:max-w-[840px] max-h-[min(92vh,840px)] mx-auto p-1.5 sm:p-2.5 rounded-2xl bg-gradient-to-b from-[#1b3815] via-[#244b1c] to-[#162f11] border-4 border-[#3e6b2f] shadow-[0_10px_40px_rgba(0,0,0,0.6),inset_0_0_20px_rgba(0,0,0,0.5)] select-none">
       {/* Brass / Gold Corner Brackets for authentic physical board look */}
       <div className="absolute top-1 left-1 w-4 h-4 border-t-2 border-l-2 border-amber-300/80 rounded-tl-sm pointer-events-none" />
       <div className="absolute top-1 right-1 w-4 h-4 border-t-2 border-r-2 border-amber-300/80 rounded-tr-sm pointer-events-none" />
