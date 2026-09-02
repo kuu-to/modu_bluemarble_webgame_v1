@@ -160,30 +160,30 @@ export const TileCell: React.FC<TileCellProps> = ({
       ) : space.type === 'golden_key' ? (
         // 🌟 2. 황금열쇠 (GOLDEN KEY) 타일 - 방향별 최적화 🌟
         isWest ? (
-          <div className="w-full h-full flex flex-row items-center justify-between text-center bg-gradient-to-r from-[#fef08a] via-[#fde047] to-[#eab308] p-1 border border-amber-300 shadow-inner">
-            <span className="text-[7px] sm:text-[8px] font-extrabold text-amber-900 tracking-wider bg-amber-300/90 px-0.5 py-1 rounded">
+          <div className="w-full h-full flex flex-row items-center justify-between text-center bg-gradient-to-r from-[#fef08a] via-[#fde047] to-[#eab308] p-1 border border-amber-300 shadow-inner overflow-hidden">
+            <span className="text-[7px] sm:text-[8px] font-extrabold text-amber-900 tracking-wider bg-amber-300/90 px-0.5 py-0.5 rounded transform rotate-90 whitespace-nowrap">
               CARD
             </span>
-            <div className="flex flex-col items-center justify-center">
-              <span className="text-[9px] sm:text-[10px] font-black text-amber-950 font-display leading-tight">
+            <div className="flex items-center justify-center">
+              <span className="text-[9px] sm:text-[10px] font-black text-amber-950 font-display leading-tight transform rotate-90 whitespace-nowrap">
                 황금열쇠
               </span>
             </div>
-            <div className="w-5 h-5 rounded-full bg-amber-500/80 text-amber-950 flex items-center justify-center shadow-xs border border-amber-600/60">
+            <div className="w-5 h-5 rounded-full bg-amber-500/80 text-amber-950 flex items-center justify-center shadow-xs border border-amber-600/60 transform rotate-90 shrink-0">
               <span className="text-xs">🔑</span>
             </div>
           </div>
         ) : isEast ? (
-          <div className="w-full h-full flex flex-row items-center justify-between text-center bg-gradient-to-r from-[#eab308] via-[#fde047] to-[#fef08a] p-1 border border-amber-300 shadow-inner">
-            <div className="w-5 h-5 rounded-full bg-amber-500/80 text-amber-950 flex items-center justify-center shadow-xs border border-amber-600/60">
+          <div className="w-full h-full flex flex-row items-center justify-between text-center bg-gradient-to-r from-[#eab308] via-[#fde047] to-[#fef08a] p-1 border border-amber-300 shadow-inner overflow-hidden">
+            <div className="w-5 h-5 rounded-full bg-amber-500/80 text-amber-950 flex items-center justify-center shadow-xs border border-amber-600/60 transform -rotate-90 shrink-0">
               <span className="text-xs">🔑</span>
             </div>
-            <div className="flex flex-col items-center justify-center">
-              <span className="text-[9px] sm:text-[10px] font-black text-amber-950 font-display leading-tight">
+            <div className="flex items-center justify-center">
+              <span className="text-[9px] sm:text-[10px] font-black text-amber-950 font-display leading-tight transform -rotate-90 whitespace-nowrap">
                 황금열쇠
               </span>
             </div>
-            <span className="text-[7px] sm:text-[8px] font-extrabold text-amber-900 tracking-wider bg-amber-300/90 px-0.5 py-1 rounded">
+            <span className="text-[7px] sm:text-[8px] font-extrabold text-amber-900 tracking-wider bg-amber-300/90 px-0.5 py-0.5 rounded transform -rotate-90 whitespace-nowrap">
               CARD
             </span>
           </div>
@@ -206,12 +206,12 @@ export const TileCell: React.FC<TileCellProps> = ({
       ) : space.type === 'tax' ? (
         // 🌟 3. 국세청 (TAX) 타일 - 방향별 최적화 🌟
         isEast ? (
-          <div className="w-full h-full flex flex-row items-center justify-between text-center bg-gradient-to-r from-rose-100 via-rose-50 to-rose-100 p-1 border border-rose-300">
-            <span className="text-base sm:text-lg">💰</span>
-            <span className="text-[9.5px] sm:text-[11px] font-black text-rose-950 font-display">
+          <div className="w-full h-full flex flex-row items-center justify-between text-center bg-gradient-to-r from-rose-100 via-rose-50 to-rose-100 p-1 border border-rose-300 overflow-hidden">
+            <span className="text-base sm:text-lg transform -rotate-90 shrink-0">💰</span>
+            <span className="text-[9.5px] sm:text-[11px] font-black text-rose-950 font-display transform -rotate-90 whitespace-nowrap">
               국세청
             </span>
-            <span className="text-[7px] sm:text-[8px] text-rose-900 font-bold bg-rose-200/90 px-0.5 py-1 rounded border border-rose-300">
+            <span className="text-[7px] sm:text-[8px] text-rose-900 font-bold bg-rose-200/90 px-0.5 py-0.5 rounded border border-rose-300 transform -rotate-90 whitespace-nowrap">
               세금 10%
             </span>
           </div>
@@ -230,52 +230,55 @@ export const TileCell: React.FC<TileCellProps> = ({
           </div>
         )
       ) : isWest ? (
-        // 🌟 4-A. 서쪽 (WEST) 타일: [좌측: 가격/통행료] | [중앙: 국기+도시명 세로] | [우측: 건물 부지 세로] 🌟
+        // 🌟 4-A. 서쪽 (WEST) 타일: [좌측: 가격/통행료] | [중앙: 국기(오른쪽90도) + 도시명(오른쪽90도)] | [우측: 건물 부지(세로3슬롯)] 🌟
         <div className="w-full h-full flex flex-row justify-between items-stretch relative overflow-hidden bg-white">
-          {/* 1. 좌측 (외곽): 가격 / 통행료 세로 뱃지 */}
-          <div className="w-[24%] min-w-[20px] flex items-center justify-center p-0.5 border-r border-slate-200">
+          {/* 1. 좌측 (외곽): 가격 / 통행료 네이비 세로 뱃지 (오른쪽 90도 회전) */}
+          <div className="w-[22%] min-w-[18px] flex items-center justify-center p-0.5 border-r border-slate-200">
             {owner ? (
               <div
-                className="w-full h-full rounded-[2px] py-1 flex flex-col items-center justify-center font-black text-[7.5px] sm:text-[8.5px] tracking-tight border shadow-xs leading-tight"
+                className="w-full h-full rounded-[2px] flex items-center justify-center font-black text-[7.5px] sm:text-[9px] tracking-tight border shadow-xs"
                 style={{
                   backgroundColor: owner.color,
                   borderColor: owner.glowColor || '#ffffff',
                   color: owner.airplaneColor === 'white' ? '#0f172a' : '#ffffff'
                 }}
               >
-                <span>료</span>
-                <span className="font-num font-bold text-[8px] sm:text-[9px]">{cellState.currentToll}</span>
-                <span>만</span>
+                <span className="whitespace-nowrap transform rotate-90 font-num">
+                  료 {cellState.currentToll}만
+                </span>
               </div>
             ) : (
-              <div className="w-full h-full rounded-[2px] py-1 flex flex-col items-center justify-center font-bold text-[7.5px] sm:text-[8.5px] tracking-tight bg-slate-900 text-amber-300 border border-slate-700 shadow-xs leading-tight">
-                <span className="font-num font-bold text-[8.5px] sm:text-[9.5px]">{space.price}</span>
-                <span className="text-[6.5px] sm:text-[7.5px]">만원</span>
+              <div className="w-full h-full rounded-[2px] flex items-center justify-center font-bold text-[7.5px] sm:text-[9px] tracking-tight bg-[#0f2942] text-amber-300 border border-slate-800 shadow-xs font-num">
+                <span className="whitespace-nowrap transform rotate-90">
+                  {space.price}만원
+                </span>
               </div>
             )}
           </div>
 
-          {/* 2. 중앙: 국기 (상단) + 도시명 세로 (하단) */}
-          <div className="flex-1 flex flex-col items-center justify-center px-0.5 py-1 text-center min-w-0 bg-white gap-0.5">
-            {/* 국기 */}
-            <div className="w-5 h-3.5 sm:w-6 sm:h-4 flex items-center justify-center shrink-0">
-              {CITY_COUNTRY_CODES[space.id] ? (
-                <CountryFlag spaceId={space.id} size="sm" />
-              ) : (
-                <span className="text-[10px] sm:text-xs leading-none">{space.icon || '📍'}</span>
-              )}
+          {/* 2. 중앙: 국기(좌측, 오른쪽 90도 회전) + 도시 이름(우측, 오른쪽 90도 회전) */}
+          <div className="flex-1 flex flex-row items-center justify-center px-0.5 py-0.5 text-center min-w-0 bg-white gap-0.5 sm:gap-1 overflow-hidden">
+            {/* 국기 (오른쪽 90도 회전) */}
+            <div className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center shrink-0">
+              <div className="transform rotate-90 flex items-center justify-center">
+                {CITY_COUNTRY_CODES[space.id] ? (
+                  <CountryFlag spaceId={space.id} size="sm" />
+                ) : (
+                  <span className="text-[10px] sm:text-xs leading-none">{space.icon || '📍'}</span>
+                )}
+              </div>
             </div>
-            {/* 도시 이름 (세로 배치) */}
-            <div className="flex flex-col items-center justify-center font-black text-[9px] sm:text-[10.5px] text-slate-900 tracking-tight font-display leading-[1.05]">
-              {space.name.split('').map((char, idx) => (
-                <span key={idx} className="block">{char}</span>
-              ))}
+            {/* 도시 이름 (오른쪽 90도 회전) */}
+            <div className="flex items-center justify-center shrink-0">
+              <span className="font-black text-[9.5px] sm:text-[11px] text-slate-900 tracking-tight font-display whitespace-nowrap transform rotate-90">
+                {space.name}
+              </span>
             </div>
           </div>
 
           {/* 3. 우측 (보드 안쪽): 건물 부지 영역 (세로 3슬롯) */}
           <div
-            className="w-[38%] min-w-[24px] sm:min-w-[28px] h-full flex flex-col items-center justify-around p-0.5 relative transition-colors duration-300 shadow-xs border-l"
+            className="w-[36%] min-w-[24px] sm:min-w-[28px] h-full flex flex-col items-center justify-around p-0.5 relative transition-colors duration-300 shadow-xs border-l"
             style={{
               backgroundColor: plotBgColor,
               borderColor: plotBorderColor
@@ -310,20 +313,20 @@ export const TileCell: React.FC<TileCellProps> = ({
                 orientation="vertical"
               />
             ) : (
-              <div className="flex flex-col items-center justify-around gap-0.5 w-full h-full opacity-40 py-0.5">
-                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60" title="별장 자리" />
-                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60" title="빌딩 자리" />
-                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60" title="호텔 자리" />
+              <div className="flex flex-col items-center justify-around gap-0.5 w-full h-full opacity-50 py-0.5">
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/80" title="별장 자리" />
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/80" title="빌딩 자리" />
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/80" title="호텔 자리" />
               </div>
             )}
           </div>
         </div>
       ) : isEast ? (
-        // 🌟 4-B. 동쪽 (EAST) 타일: [좌측: 건물 부지 세로] | [중앙: 도시명 세로+국기] | [우측: 가격/통행료] 🌟
+        // 🌟 4-B. 동쪽 (EAST) 타일: [좌측: 건물 부지(세로3슬롯)] | [중앙: 도시명(왼쪽90도) + 국기(왼쪽90도)] | [우측: 가격/통행료(왼쪽90도)] 🌟
         <div className="w-full h-full flex flex-row justify-between items-stretch relative overflow-hidden bg-white">
           {/* 1. 좌측 (보드 안쪽): 건물 부지 영역 (세로 3슬롯) */}
           <div
-            className="w-[38%] min-w-[24px] sm:min-w-[28px] h-full flex flex-col items-center justify-around p-0.5 relative transition-colors duration-300 shadow-xs border-r"
+            className="w-[36%] min-w-[24px] sm:min-w-[28px] h-full flex flex-col items-center justify-around p-0.5 relative transition-colors duration-300 shadow-xs border-r"
             style={{
               backgroundColor: plotBgColor,
               borderColor: plotBorderColor
@@ -358,23 +361,66 @@ export const TileCell: React.FC<TileCellProps> = ({
                 orientation="vertical"
               />
             ) : (
-              <div className="flex flex-col items-center justify-around gap-0.5 w-full h-full opacity-40 py-0.5">
-                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60" title="별장 자리" />
-                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60" title="빌딩 자리" />
-                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60" title="호텔 자리" />
+              <div className="flex flex-col items-center justify-around gap-0.5 w-full h-full opacity-50 py-0.5">
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/80" title="별장 자리" />
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/80" title="빌딩 자리" />
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/80" title="호텔 자리" />
               </div>
             )}
           </div>
 
-          {/* 2. 중앙: 도시명 세로 (상단) + 국기 (하단) */}
-          <div className="flex-1 flex flex-col items-center justify-center px-0.5 py-1 text-center min-w-0 bg-white gap-0.5">
-            {/* 도시 이름 (세로 배치) */}
-            <div className="flex flex-col items-center justify-center font-black text-[9px] sm:text-[10.5px] text-slate-900 tracking-tight font-display leading-[1.05]">
-              {space.name.split('').map((char, idx) => (
-                <span key={idx} className="block">{char}</span>
-              ))}
+          {/* 2. 중앙: 도시 이름(왼쪽 90도 회전) + 국기(왼쪽 90도 회전) */}
+          <div className="flex-1 flex flex-row items-center justify-center px-0.5 py-0.5 text-center min-w-0 bg-white gap-0.5 sm:gap-1 overflow-hidden">
+            {/* 도시 이름 (왼쪽 90도 회전, -rotate-90) */}
+            <div className="flex items-center justify-center shrink-0">
+              <span className="font-black text-[9.5px] sm:text-[11px] text-slate-900 tracking-tight font-display whitespace-nowrap transform -rotate-90">
+                {space.name}
+              </span>
             </div>
-            {/* 국기 */}
+            {/* 국기 (왼쪽 90도 회전, -rotate-90) */}
+            <div className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center shrink-0">
+              <div className="transform -rotate-90 flex items-center justify-center">
+                {CITY_COUNTRY_CODES[space.id] ? (
+                  <CountryFlag spaceId={space.id} size="sm" />
+                ) : (
+                  <span className="text-[10px] sm:text-xs leading-none">{space.icon || '📍'}</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 3. 우측 (외곽): 가격 / 통행료 네이비 세로 뱃지 (왼쪽 90도 회전, -rotate-90) */}
+          <div className="w-[22%] min-w-[18px] flex items-center justify-center p-0.5 border-l border-slate-200">
+            {owner ? (
+              <div
+                className="w-full h-full rounded-[2px] flex items-center justify-center font-black text-[7.5px] sm:text-[9px] tracking-tight border shadow-xs"
+                style={{
+                  backgroundColor: owner.color,
+                  borderColor: owner.glowColor || '#ffffff',
+                  color: owner.airplaneColor === 'white' ? '#0f172a' : '#ffffff'
+                }}
+              >
+                <span className="whitespace-nowrap transform -rotate-90 font-num">
+                  료 {cellState.currentToll}만
+                </span>
+              </div>
+            ) : (
+              <div className="w-full h-full rounded-[2px] flex items-center justify-center font-bold text-[7.5px] sm:text-[9px] tracking-tight bg-[#0f2942] text-amber-300 border border-slate-800 shadow-xs font-num">
+                <span className="whitespace-nowrap transform -rotate-90">
+                  {space.price}만원
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : isNorth ? (
+        // 🌟 4-C. 북쪽 (NORTH) 타일: [상단: 도시명 + 국기] | [중단: 가격/통행료] | [하단: 컴팩트 건물부지(가로3슬롯)] 🌟
+        <div className="w-full h-full flex flex-col justify-between items-center relative overflow-hidden bg-white">
+          {/* 1. 상단 (외곽): 도시 이름 & 국기 (여유로운 공간 확보로 겹침 방지) */}
+          <div className="w-full flex-1 flex flex-col items-center justify-center px-0.5 pt-1 pb-0.5 text-center min-h-0 bg-white gap-0.5">
+            <span className="font-black text-[9.5px] sm:text-[11px] text-slate-900 tracking-tight leading-none block truncate max-w-full font-display">
+              {space.name}
+            </span>
             <div className="w-5 h-3.5 sm:w-6 sm:h-4 flex items-center justify-center shrink-0">
               {CITY_COUNTRY_CODES[space.id] ? (
                 <CountryFlag spaceId={space.id} size="sm" />
@@ -384,51 +430,11 @@ export const TileCell: React.FC<TileCellProps> = ({
             </div>
           </div>
 
-          {/* 3. 우측 (외곽): 가격 / 통행료 세로 뱃지 */}
-          <div className="w-[24%] min-w-[20px] flex items-center justify-center p-0.5 border-l border-slate-200">
-            {owner ? (
-              <div
-                className="w-full h-full rounded-[2px] py-1 flex flex-col items-center justify-center font-black text-[7.5px] sm:text-[8.5px] tracking-tight border shadow-xs leading-tight"
-                style={{
-                  backgroundColor: owner.color,
-                  borderColor: owner.glowColor || '#ffffff',
-                  color: owner.airplaneColor === 'white' ? '#0f172a' : '#ffffff'
-                }}
-              >
-                <span>료</span>
-                <span className="font-num font-bold text-[8px] sm:text-[9px]">{cellState.currentToll}</span>
-                <span>만</span>
-              </div>
-            ) : (
-              <div className="w-full h-full rounded-[2px] py-1 flex flex-col items-center justify-center font-bold text-[7.5px] sm:text-[8.5px] tracking-tight bg-slate-900 text-amber-300 border border-slate-700 shadow-xs leading-tight">
-                <span className="font-num font-bold text-[8.5px] sm:text-[9.5px]">{space.price}</span>
-                <span className="text-[6.5px] sm:text-[7.5px]">만원</span>
-              </div>
-            )}
-          </div>
-        </div>
-      ) : isNorth ? (
-        // 🌟 4-C. 북쪽 (NORTH) 타일: [상단: 도시명+국기] | [중단: 가격/통행료] | [하단: 건물 부지] 🌟
-        <div className="w-full h-full flex flex-col justify-between items-center relative overflow-hidden bg-white">
-          {/* 1. 상단 (외곽): 도시 이름 & 국기 */}
-          <div className="w-full flex-1 flex flex-col items-center justify-center px-1 py-0.5 text-center min-h-0 bg-white">
-            <span className="font-black text-[9.5px] sm:text-[11px] text-slate-900 tracking-tight leading-tight block truncate max-w-full font-display">
-              {space.name}
-            </span>
-            <div className="w-5 h-3.5 sm:w-6 sm:h-4 my-0.5 flex items-center justify-center shrink-0">
-              {CITY_COUNTRY_CODES[space.id] ? (
-                <CountryFlag spaceId={space.id} size="sm" />
-              ) : (
-                <span className="text-[10px] sm:text-xs leading-none">{space.icon || '📍'}</span>
-              )}
-            </div>
-          </div>
-
-          {/* 2. 중단: 가격 / 통행료 뱃지 */}
+          {/* 2. 중단: 가격 / 통행료 뱃지 (남색/소유주색) */}
           <div className="w-full px-0.5 py-0.5 border-y border-slate-200">
             {owner ? (
               <div
-                className="w-full rounded-[2px] py-0.2 text-center font-black text-[8px] sm:text-[9.5px] tracking-tight border shadow-xs"
+                className="w-full rounded-[2px] py-0.5 text-center font-black text-[8px] sm:text-[9.5px] tracking-tight border shadow-xs"
                 style={{
                   backgroundColor: owner.color,
                   borderColor: owner.glowColor || '#ffffff',
@@ -438,15 +444,15 @@ export const TileCell: React.FC<TileCellProps> = ({
                 료 {cellState.currentToll}만
               </div>
             ) : (
-              <div className="w-full rounded-[2px] py-0.2 text-center font-bold text-[8px] sm:text-[9.5px] tracking-tight bg-slate-900 text-amber-300 border border-slate-700 shadow-xs font-num">
+              <div className="w-full rounded-[2px] py-0.5 text-center font-bold text-[8px] sm:text-[9.5px] tracking-tight bg-[#0f2942] text-amber-300 border border-slate-800 shadow-xs font-num">
                 {space.price}만원
               </div>
             )}
           </div>
 
-          {/* 3. 하단 (보드 안쪽): 건물 부지 영역 (가로 3슬롯) */}
+          {/* 3. 하단 (보드 안쪽): 컴팩트 건물 부지 영역 (가로 3슬롯) */}
           <div
-            className="w-full h-[40%] min-h-[22px] sm:min-h-[26px] flex items-center justify-center p-0.5 relative transition-colors duration-300 shadow-xs border-t"
+            className="w-full h-[28%] min-h-[16px] sm:min-h-[20px] flex items-center justify-center p-0.5 relative transition-colors duration-300 shadow-xs border-t"
             style={{
               backgroundColor: plotBgColor,
               borderColor: plotBorderColor
@@ -481,20 +487,20 @@ export const TileCell: React.FC<TileCellProps> = ({
                 orientation="horizontal"
               />
             ) : (
-              <div className="flex items-center justify-center gap-1 w-full h-full opacity-40 px-1">
-                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60" title="별장 자리" />
-                <div className="w-3 h-3.5 rounded-[1px] border border-dashed border-white/60" title="빌딩 자리" />
-                <div className="w-3 h-3.5 rounded-[1px] border border-dashed border-white/60" title="호텔 자리" />
+              <div className="flex items-center justify-center gap-1 w-full h-full opacity-50 px-1">
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/80" title="별장 자리" />
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/80" title="빌딩 자리" />
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/80" title="호텔 자리" />
               </div>
             )}
           </div>
         </div>
       ) : (
-        // 🌟 4-D. 남쪽 (SOUTH) 타일: [상단: 건물 부지] | [중단: 도시명+국기] | [하단: 가격/통행료] 🌟
+        // 🌟 4-D. 남쪽 (SOUTH) 타일: [상단: 컴팩트 건물부지(가로3슬롯)] | [중단: 도시명+국기] | [하단: 가격/통행료] 🌟
         <div className="w-full h-full flex flex-col justify-between items-center relative overflow-hidden bg-white">
-          {/* 1. 상단 (보드 안쪽): 건물 부지 영역 (가로 3슬롯) */}
+          {/* 1. 상단 (보드 안쪽): 컴팩트 건물 부지 영역 (가로 3슬롯) */}
           <div
-            className="w-full h-[40%] min-h-[22px] sm:min-h-[26px] flex items-center justify-center p-0.5 relative transition-colors duration-300 shadow-xs border-b"
+            className="w-full h-[28%] min-h-[16px] sm:min-h-[20px] flex items-center justify-center p-0.5 relative transition-colors duration-300 shadow-xs border-b"
             style={{
               backgroundColor: plotBgColor,
               borderColor: plotBorderColor
@@ -529,20 +535,20 @@ export const TileCell: React.FC<TileCellProps> = ({
                 orientation="horizontal"
               />
             ) : (
-              <div className="flex items-center justify-center gap-1 w-full h-full opacity-40 px-1">
-                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60" title="별장 자리" />
-                <div className="w-3 h-3.5 rounded-[1px] border border-dashed border-white/60" title="빌딩 자리" />
-                <div className="w-3 h-3.5 rounded-[1px] border border-dashed border-white/60" title="호텔 자리" />
+              <div className="flex items-center justify-center gap-1 w-full h-full opacity-50 px-1">
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/80" title="별장 자리" />
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/80" title="빌딩 자리" />
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/80" title="호텔 자리" />
               </div>
             )}
           </div>
 
-          {/* 2. 중단: 도시 이름 & 국기 & 국가 정보 */}
-          <div className="w-full flex-1 flex flex-col items-center justify-center px-1 py-0.5 text-center min-h-0 bg-white">
-            <span className="font-black text-[9.5px] sm:text-[11px] text-slate-900 tracking-tight leading-tight block truncate max-w-full font-display">
+          {/* 2. 중단: 도시 이름 & 국기 */}
+          <div className="w-full flex-1 flex flex-col items-center justify-center px-0.5 pt-0.5 pb-0.5 text-center min-h-0 bg-white gap-0.5">
+            <span className="font-black text-[9.5px] sm:text-[11px] text-slate-900 tracking-tight leading-none block truncate max-w-full font-display">
               {space.name}
             </span>
-            <div className="w-5 h-3.5 sm:w-6 sm:h-4 my-0.5 flex items-center justify-center shrink-0">
+            <div className="w-5 h-3.5 sm:w-6 sm:h-4 flex items-center justify-center shrink-0">
               {CITY_COUNTRY_CODES[space.id] ? (
                 <CountryFlag spaceId={space.id} size="sm" />
               ) : (
@@ -555,7 +561,7 @@ export const TileCell: React.FC<TileCellProps> = ({
           <div className="w-full px-0.5 pb-0.5">
             {owner ? (
               <div
-                className="w-full rounded-[2px] py-0.2 text-center font-black text-[8px] sm:text-[9.5px] tracking-tight border shadow-xs"
+                className="w-full rounded-[2px] py-0.5 text-center font-black text-[8px] sm:text-[9.5px] tracking-tight border shadow-xs"
                 style={{
                   backgroundColor: owner.color,
                   borderColor: owner.glowColor || '#ffffff',
@@ -565,7 +571,7 @@ export const TileCell: React.FC<TileCellProps> = ({
                 료 {cellState.currentToll}만
               </div>
             ) : (
-              <div className="w-full rounded-[2px] py-0.2 text-center font-bold text-[8px] sm:text-[9.5px] tracking-tight bg-slate-900 text-amber-300 border border-slate-700 shadow-xs font-num">
+              <div className="w-full rounded-[2px] py-0.5 text-center font-bold text-[8px] sm:text-[9.5px] tracking-tight bg-[#0f2942] text-amber-300 border border-slate-800 shadow-xs font-num">
                 {space.price}만원
               </div>
             )}

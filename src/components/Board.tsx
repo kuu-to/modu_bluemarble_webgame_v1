@@ -56,8 +56,8 @@ export const Board: React.FC<BoardProps> = ({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1.6fr repeat(9, 1fr) 1.6fr',
-          gridTemplateRows: '1.6fr repeat(9, 1fr) 1.6fr',
+          gridTemplateColumns: '2.2fr repeat(9, 1fr) 2.2fr',
+          gridTemplateRows: '2.1fr repeat(9, 1fr) 2.1fr',
         }}
         className="w-full h-full gap-[1.5px] sm:gap-[2px] relative rounded-xl overflow-hidden bg-[#24451a] border border-[#3b682b]"
       >
