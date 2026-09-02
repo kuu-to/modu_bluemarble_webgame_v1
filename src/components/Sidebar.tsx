@@ -256,13 +256,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       {p.isAI ? 'AI 봇' : `P${idx + 1}`}
                     </span>
                   </div>
-                  <div className="text-[10.5px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                  <div className="text-[10.5px] text-slate-400 flex items-center gap-1.5 mt-0.5 flex-wrap">
                     <span>도시 <strong className="text-slate-200 font-num">{p.ownedCityCount}개</strong></span>
                     {p.islandTurnsLeft > 0 && (
-                      <span className="text-emerald-400 font-bold">🏝️ ({p.islandTurnsLeft}턴)</span>
+                      <span className="text-emerald-300 font-bold px-1.5 py-0.2 rounded bg-emerald-950/80 border border-emerald-500/40 text-[9.5px]">
+                        🏝️ 무인도 ({p.islandTurnsLeft}턴)
+                      </span>
                     )}
                     {p.hasIslandEscapeCard > 0 && (
-                      <span className="text-purple-400 font-bold">🛶 x{p.hasIslandEscapeCard}</span>
+                      <span className="text-purple-300 font-bold px-1.5 py-0.2 rounded bg-purple-950/80 border border-purple-500/40 text-[9.5px] flex items-center gap-0.5" title="무인도 탈출권 (인벤토리 보관 중)">
+                        <span>🛶 탈출권</span>
+                        <strong className="text-purple-200 font-num">{p.hasIslandEscapeCard}장</strong>
+                      </span>
                     )}
                   </div>
                 </div>

@@ -30,6 +30,7 @@ import { FloatingCashEffect } from './components/FloatingCashEffect';
 import { GameSetupScreen } from './components/GameSetupScreen';
 import { EmergencyDebtModal } from './components/EmergencyDebtModal';
 import { StartUpgradeModal, getUpgradeableCities } from './components/StartUpgradeModal';
+import { IslandModal } from './components/IslandModal';
 
 const INITIAL_MONEY = 300; // 300만 원 initial cash
 const SALARY_AMOUNT = 20; // 20만 원 salary
@@ -88,12 +89,13 @@ export default function App() {
   const [boardBroadcast, setBoardBroadcast] = useState<BoardBroadcastMessage | null>(null);
 
   // Active modal controls
-  const [activeModal, setActiveModal] = useState<null | 'purchase' | 'toll' | 'golden_key' | 'space_travel' | 'game_over' | 'debt' | 'start_upgrade'>(null);
+  const [activeModal, setActiveModal] = useState<null | 'purchase' | 'toll' | 'golden_key' | 'space_travel' | 'game_over' | 'debt' | 'start_upgrade' | 'island'>(null);
   const [currentGoldenKey, setCurrentGoldenKey] = useState<GoldenKeyCard | null>(null);
   const [currentTollData, setCurrentTollData] = useState<{ space: SpaceData; owner: Player; payer: Player } | null>(null);
   const [debtModalData, setDebtModalData] = useState<{
     payer: Player;
     debtAmount: number;
+    totalRequiredAmount?: number;
     recipient: Player | null;
     reasonText: string;
     onSuccess: (updatedPayer: Player, updatedRecipient: Player | null) => void;
@@ -368,6 +370,15 @@ export default function App() {
         badge: nextPlayer.isAI ? 'AI 턴' : '플레이어 턴',
         badgeColor: nextPlayer.isAI ? 'purple' : 'emerald'
       });
+
+      // If next player is trapped in Island, open Island Escape Action Modal
+      if (!nextPlayer.isAI && nextPlayer.islandTurnsLeft > 0) {
+        registerTimer(() => {
+          if (turnSeqRef.current === currentSeq) {
+            setActiveModal('island');
+          }
+        }, speedConfig.bannerDurationMs + 100, currentSeq);
+      }
     }
 
     // Play turn switch sound & show banner
@@ -566,28 +577,17 @@ export default function App() {
 
     // 4. Tax (국세청)
     if (space.type === 'tax') {
-      soundManager.playTollPenalty();
-      const taxAmount = Math.max(10, Math.floor(player.money * 0.1));
-      addLog(player.id, `💰 국세청 세무조사! 자산 비례 세금 ${taxAmount}만 원을 납부합니다.`, 'event');
-      triggerBroadcast({
+      const taxAmount = Math.max(15, Math.floor(player.money * 0.1) || 20);
+      executeUniversalPayment({
+        payer: player,
+        totalAmount: taxAmount,
+        recipient: null,
+        reasonTitle: '국세청 세무조사 세금',
+        reasonText: `국세청 세무조사 세금 ${taxAmount}만 원 중 ${Math.max(0, taxAmount - player.money)}만 원 부족`,
         category: 'tax',
-        playerId: player.id,
-        playerName: player.name,
-        playerColor: player.color,
-        isAI: player.isAI,
-        title: `💸 [국세청 세무조사] 세금 납부 (-${taxAmount}만 원)`,
-        detail: `${player.name}님이 자산 비례 세금 ${taxAmount}만 원을 납부했습니다.`,
-        badge: `세금 -${taxAmount}만`,
-        badgeColor: 'rose'
+        isSocialFundDonation: true,
+        currentTurnSeq
       });
-      showFloatingEffect(player.id, taxAmount, false);
-      setSocialFund(prev => prev + taxAmount);
-      setPlayers(prev => {
-        const next = prev.map(p => p.id === player.id ? { ...p, money: p.money - taxAmount } : p);
-        checkGameOver(next);
-        return updateTotalAssets(next, cellsRef.current);
-      });
-      registerTimer(() => endTurn(isDouble, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
       return;
     }
 
@@ -1186,181 +1186,376 @@ export default function App() {
     registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
   };
 
-  // Execute Toll Payment (With Loan & Property Sale Rescue Support)
-  const executePayToll = (space: SpaceData, owner: Player, payer: Player, toll: number, currentTurnSeq?: number) => {
-    const seq = currentTurnSeq || turnSeqRef.current;
+  // Island Escape Actions (Inventory-stored card usage, bail fee, and double roll)
+  const handleUseIslandEscapeCard = (playerOverride?: Player) => {
+    const player = playerOverride || playersRef.current[activePlayerIndexRef.current];
+    if (!player || player.hasIslandEscapeCard <= 0) return;
 
-    // Check if player has enough money to pay
-    if (payer.money < toll) {
-      const deficit = toll - payer.money;
+    soundManager.playCashGain();
+    setPlayers(prev => prev.map(p => p.id === player.id ? {
+      ...p,
+      hasIslandEscapeCard: p.hasIslandEscapeCard - 1,
+      islandTurnsLeft: 0
+    } : p));
 
-      if (payer.isAI) {
-        // AI Rescue Decision: If hasn't used loan, take loan! Else sell properties
-        if (!payer.hasUsedLoan) {
-          // AI takes emergency loan
-          const loanAmt = deficit;
-          soundManager.playCashGain();
-          addLog(payer.id, `💳 ${payer.name}가 긴급 대출 ${loanAmt}만 원을 승인받아 통행료를 납부합니다.`, 'event');
-          
-          setPlayers(prev => {
-            const next = prev.map(p => {
-              if (p.id === payer.id) {
-                return {
-                  ...p,
-                  money: 0,
-                  debt: (p.debt || 0) + loanAmt,
-                  hasUsedLoan: true
-                };
-              }
-              if (p.id === owner.id) {
-                return { ...p, money: p.money + toll };
-              }
-              return p;
-            });
-            return updateTotalAssets(next, cellsRef.current);
-          });
-
-          showFloatingEffect(payer.id, toll, false);
-          showFloatingEffect(owner.id, toll, true);
-          setActiveModal(null);
-          registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
-          return;
-        } else {
-          // Check if AI can sell properties
-          const aiOwnedCells = (Object.entries(cellsRef.current) as [string, CellState][]).filter(([_, c]) => c.owner === payer.id);
-          let recovered = 0;
-          const soldIds: number[] = [];
-
-          for (const [idStr, c] of aiOwnedCells) {
-            const sId = Number(idStr);
-            const sp = BOARD_SPACES[sId];
-            if (sp) {
-              const val = calculateSpaceValue(sp, c.buildings);
-              recovered += val;
-              soldIds.push(sId);
-              if (payer.money + recovered >= toll) break;
-            }
-          }
-
-          if (payer.money + recovered >= toll) {
-            // Sell AI properties and pay
-            setCells(prev => {
-              const nextC = { ...prev };
-              soldIds.forEach(id => {
-                nextC[id] = {
-                  owner: null,
-                  buildings: { hasVilla: false, hasBuilding: false, hasHotel: false, isLandmark: false },
-                  currentToll: 0
-                };
-              });
-              return nextC;
-            });
-
-            setPlayers(prev => {
-              const next = prev.map(p => {
-                if (p.id === payer.id) return { ...p, money: (p.money + recovered) - toll };
-                if (p.id === owner.id) return { ...p, money: p.money + toll };
-                return p;
-              });
-              return updateTotalAssets(next, cellsRef.current);
-            });
-
-            addLog(payer.id, `🏬 ${payer.name}가 도시 ${soldIds.length}개를 긴급 매각하여 통행료를 완납했습니다.`, 'event');
-            setActiveModal(null);
-            registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
-            return;
-          } else {
-            // Bankrupt!
-            setPlayers(prev => {
-              const next = prev.map(p => p.id === payer.id ? { ...p, money: -1 } : p);
-              checkGameOver(next);
-              return updateTotalAssets(next, cellsRef.current);
-            });
-            setActiveModal(null);
-            registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
-            return;
-          }
-        }
-      }
-
-      // For Human Player: Open Emergency Debt & Sell Modal!
-      setDebtModalData({
-        payer,
-        debtAmount: deficit,
-        recipient: owner,
-        reasonText: `${owner.name}의 [${space.name}] 통행료 ${toll}만 원 중 ${deficit}만 원 부족`,
-        onSuccess: (updatedPayer, updatedRecipient) => {
-          showFloatingEffect(payer.id, toll, false);
-          showFloatingEffect(owner.id, toll, true);
-          addLog(payer.id, `💸 ${payer.name}가 구제 조치를 통해 ${owner.name}의 통행료 ${toll}만 원을 정상 지불했습니다.`, 'toll');
-
-          setPlayers(prev => {
-            const next = prev.map(p => {
-              if (p.id === updatedPayer.id) return updatedPayer;
-              if (updatedRecipient && p.id === updatedRecipient.id) return updatedRecipient;
-              return p;
-            });
-            return updateTotalAssets(next, cellsRef.current);
-          });
-
-          setActiveModal(null);
-          setDebtModalData(null);
-          registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
-        }
-      });
-      setActiveModal('debt');
-      return;
-    }
-
-    // Normal toll payment flow when payer has sufficient funds
-    soundManager.playTollPenalty();
-    showFloatingEffect(payer.id, toll, false);
-    showFloatingEffect(owner.id, toll, true);
-
-    addLog(payer.id, `💸 ${payer.name}가 ${owner.name}의 [${space.name}] 통행료 ${toll}만 원 지불`, 'toll');
-
+    addLog(player.id, `🛶 ${player.name}가 보관 중이던 [무인도 탈출권]을 사용하여 무인도를 즉시 탈출했습니다! (남은 탈출권: ${player.hasIslandEscapeCard - 1}장)`, 'event');
     triggerBroadcast({
-      category: 'toll_paid',
-      playerId: payer.id,
-      playerName: payer.name,
-      playerColor: playerColor(payer.id),
-      isAI: payer.isAI,
-      title: `💸 [${space.name}] 통행료 ${toll}만 원 지불 완료!`,
-      detail: `${payer.name} → ${owner.name}님에게 통행료 ${toll}만 원 송금 (지불 후 잔액: ${payer.money - toll}만 원)`,
-      badge: `통행료 -${toll}만`,
-      badgeColor: 'rose'
-    });
-
-    setPlayers(prev => {
-      const next = prev.map(p => {
-        if (p.id === payer.id) return { ...p, money: p.money - toll };
-        if (p.id === owner.id) return { ...p, money: p.money + toll };
-        return p;
-      });
-      checkGameOver(next);
-      return updateTotalAssets(next, cellsRef.current);
+      category: 'island',
+      playerId: player.id,
+      playerName: player.name,
+      playerColor: player.color,
+      isAI: player.isAI,
+      title: `🛶 [무인도 탈출] 탈출권 사용 성공!`,
+      detail: `${player.name}님이 보관 중이던 무인도 탈출권을 사용하여 즉시 탈출했습니다. 주사위를 굴려 전진하세요!`,
+      badge: '탈출 성공',
+      badgeColor: 'emerald'
     });
 
     setActiveModal(null);
-    registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+  };
+
+  const handlePayIslandBail = (playerOverride?: Player) => {
+    const player = playerOverride || playersRef.current[activePlayerIndexRef.current];
+    if (!player || player.money < 20) return;
+
+    soundManager.playTollPenalty();
+    showFloatingEffect(player.id, 20, false);
+    setSocialFund(prev => prev + 20);
+
+    setPlayers(prev => {
+      const next = prev.map(p => p.id === player.id ? {
+        ...p,
+        money: p.money - 20,
+        islandTurnsLeft: 0
+      } : p);
+      return updateTotalAssets(next, cellsRef.current);
+    });
+
+    addLog(player.id, `💰 ${player.name}가 보석금 20만 원을 지불하고 무인도를 즉시 탈출했습니다. (기금 적립)`, 'event');
+    triggerBroadcast({
+      category: 'island',
+      playerId: player.id,
+      playerName: player.name,
+      playerColor: player.color,
+      isAI: player.isAI,
+      title: `💰 [무인도 보석금 탈출] 20만 원 납부`,
+      detail: `${player.name}님이 보석금을 납부하고 무인도를 즉시 탈출했습니다. 주사위를 굴려 전진하세요!`,
+      badge: '보석금 -20만',
+      badgeColor: 'amber'
+    });
+
+    setActiveModal(null);
+  };
+
+  const handleTryIslandDouble = () => {
+    setActiveModal(null);
+    triggerDiceRoll();
+  };
+
+  // Universal Payment & Emergency Debt / Sale Relief Handler
+  interface UniversalPaymentParams {
+    payer: Player;
+    totalAmount: number;
+    recipient: Player | null;
+    reasonTitle: string;
+    reasonText: string;
+    category: 'toll' | 'tax' | 'golden_key' | 'fund' | 'event';
+    isSocialFundDonation?: boolean;
+    currentTurnSeq?: number;
+    onCompleted?: (updatedPayer: Player, updatedRecipient: Player | null) => void;
+  }
+
+  const executeUniversalPayment = (params: UniversalPaymentParams) => {
+    const {
+      payer,
+      totalAmount,
+      recipient,
+      reasonTitle,
+      reasonText,
+      category,
+      isSocialFundDonation = false,
+      currentTurnSeq,
+      onCompleted
+    } = params;
+
+    const seq = currentTurnSeq || turnSeqRef.current;
+
+    // 1. Normal Payment (Player has sufficient cash)
+    if (payer.money >= totalAmount) {
+      soundManager.playTollPenalty();
+      showFloatingEffect(payer.id, totalAmount, false);
+      if (recipient) {
+        showFloatingEffect(recipient.id, totalAmount, true);
+      }
+      if (isSocialFundDonation) {
+        setSocialFund(prev => prev + totalAmount);
+      }
+
+      const logType = category === 'toll' ? 'toll' : category === 'golden_key' ? 'golden_key' : 'event';
+      const recipientName = recipient ? `${recipient.name}님에게 ` : isSocialFundDonation ? '사회복지기금에 ' : '';
+      addLog(payer.id, `💸 ${payer.name}가 ${recipientName}[${reasonTitle}] ${totalAmount}만 원 지불 완료`, logType);
+
+      triggerBroadcast({
+        category: category === 'toll' ? 'toll_paid' : category === 'tax' ? 'tax' : 'golden_key',
+        playerId: payer.id,
+        playerName: payer.name,
+        playerColor: playerColor(payer.id),
+        isAI: payer.isAI,
+        title: `💸 [${reasonTitle}] ${totalAmount}만 원 지불 완료!`,
+        detail: recipient
+          ? `${payer.name} → ${recipient.name}님에게 ${totalAmount}만 원 송금 (지불 후 잔액: ${payer.money - totalAmount}만 원)`
+          : isSocialFundDonation
+          ? `${payer.name}님이 기금에 ${totalAmount}만 원을 적립했습니다. (지불 후 잔액: ${payer.money - totalAmount}만 원)`
+          : `${payer.name}님이 ${totalAmount}만 원을 납부했습니다. (지불 후 잔액: ${payer.money - totalAmount}만 원)`,
+        badge: `-${totalAmount}만`,
+        badgeColor: 'rose'
+      });
+
+      let updatedPayerRes: Player | null = null;
+      let updatedRecipientRes: Player | null = null;
+
+      setPlayers(prev => {
+        const next = prev.map(p => {
+          if (p.id === payer.id) {
+            const u = { ...p, money: p.money - totalAmount };
+            updatedPayerRes = u;
+            return u;
+          }
+          if (recipient && p.id === recipient.id) {
+            const u = { ...p, money: p.money + totalAmount };
+            updatedRecipientRes = u;
+            return u;
+          }
+          return p;
+        });
+        checkGameOver(next);
+        return updateTotalAssets(next, cellsRef.current);
+      });
+
+      setActiveModal(null);
+      if (onCompleted && updatedPayerRes) {
+        onCompleted(updatedPayerRes, updatedRecipientRes);
+      } else {
+        registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+      }
+      return;
+    }
+
+    // 2. Insufficient Funds (Emergency Debt & Property Sale Relief)
+    const deficit = totalAmount - payer.money;
+
+    // AI Emergency Handling
+    if (payer.isAI) {
+      if (!payer.hasUsedLoan) {
+        // AI Option 1: Emergency Loan
+        const loanAmt = deficit;
+        soundManager.playCashGain();
+        if (isSocialFundDonation) {
+          setSocialFund(prev => prev + totalAmount);
+        }
+
+        const updatedPayer: Player = {
+          ...payer,
+          money: 0,
+          debt: (payer.debt || 0) + loanAmt,
+          hasUsedLoan: true
+        };
+
+        const updatedRecipient: Player | null = recipient ? {
+          ...recipient,
+          money: recipient.money + totalAmount
+        } : null;
+
+        showFloatingEffect(payer.id, totalAmount, false);
+        if (recipient) {
+          showFloatingEffect(recipient.id, totalAmount, true);
+        }
+
+        addLog(payer.id, `💳 ${payer.name}가 긴급 대출 ${loanAmt}만 원을 승인받아 [${reasonTitle}] ${totalAmount}만 원을 완납했습니다.`, 'event');
+        triggerBroadcast({
+          category: 'purchase',
+          playerId: payer.id,
+          playerName: payer.name,
+          playerColor: payer.color,
+          isAI: payer.isAI,
+          title: `💳 [긴급 구제 대출] ${reasonTitle} 완납`,
+          detail: `${payer.name}님이 긴급 대출 ${loanAmt}만 원을 실행하여 비용을 해결했습니다. (총 부채: ${updatedPayer.debt}만 원)`,
+          badge: `대출 빚 +${loanAmt}만`,
+          badgeColor: 'indigo'
+        });
+
+        setPlayers(prev => {
+          const next = prev.map(p => {
+            if (p.id === payer.id) return updatedPayer;
+            if (recipient && p.id === recipient.id) return updatedRecipient!;
+            return p;
+          });
+          return updateTotalAssets(next, cellsRef.current);
+        });
+
+        setActiveModal(null);
+        if (onCompleted) {
+          onCompleted(updatedPayer, updatedRecipient);
+        } else {
+          registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+        }
+        return;
+      } else {
+        // AI Option 2: Sell Properties
+        const aiOwnedCells = (Object.entries(cellsRef.current) as [string, CellState][]).filter(([_, c]) => c.owner === payer.id);
+        let recovered = 0;
+        const soldIds: number[] = [];
+
+        for (const [idStr, c] of aiOwnedCells) {
+          const sId = Number(idStr);
+          const sp = BOARD_SPACES[sId];
+          if (sp) {
+            const val = calculateSpaceValue(sp, c.buildings);
+            recovered += val;
+            soldIds.push(sId);
+            if (payer.money + recovered >= totalAmount) break;
+          }
+        }
+
+        if (payer.money + recovered >= totalAmount) {
+          if (isSocialFundDonation) {
+            setSocialFund(prev => prev + totalAmount);
+          }
+
+          setCells(prev => {
+            const nextC = { ...prev };
+            soldIds.forEach(id => {
+              nextC[id] = {
+                owner: null,
+                buildings: { hasVilla: false, hasBuilding: false, hasHotel: false, isLandmark: false },
+                currentToll: 0
+              };
+            });
+            return nextC;
+          });
+
+          const remainingCash = (payer.money + recovered) - totalAmount;
+          const updatedPayer: Player = { ...payer, money: remainingCash };
+          const updatedRecipient: Player | null = recipient ? { ...recipient, money: recipient.money + totalAmount } : null;
+
+          showFloatingEffect(payer.id, totalAmount, false);
+          if (recipient) {
+            showFloatingEffect(recipient.id, totalAmount, true);
+          }
+
+          addLog(payer.id, `🏬 ${payer.name}가 도시 ${soldIds.length}개를 긴급 매각(+${recovered}만 원)하여 [${reasonTitle}]을 완납했습니다.`, 'event');
+          triggerBroadcast({
+            category: 'purchase',
+            playerId: payer.id,
+            playerName: payer.name,
+            playerColor: payer.color,
+            isAI: payer.isAI,
+            title: `🏬 [소유 도시 긴급 매각] ${reasonTitle} 완납`,
+            detail: `매각 환급금 ${recovered}만 원으로 부족금을 충당하여 전액 완납했습니다.`,
+            badge: `매각 +${recovered}만`,
+            badgeColor: 'amber'
+          });
+
+          setPlayers(prev => {
+            const next = prev.map(p => {
+              if (p.id === payer.id) return updatedPayer;
+              if (recipient && p.id === recipient.id) return updatedRecipient!;
+              return p;
+            });
+            return updateTotalAssets(next, cellsRef.current);
+          });
+
+          setActiveModal(null);
+          if (onCompleted) {
+            onCompleted(updatedPayer, updatedRecipient);
+          } else {
+            registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+          }
+          return;
+        } else {
+          // AI Bankrupt
+          setPlayers(prev => {
+            const next = prev.map(p => p.id === payer.id ? { ...p, money: -1 } : p);
+            checkGameOver(next);
+            return updateTotalAssets(next, cellsRef.current);
+          });
+          setActiveModal(null);
+          registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+          return;
+        }
+      }
+    }
+
+    // Human Player: Open EmergencyDebtModal
+    setActiveModal(null);
+    setDebtModalData({
+      payer,
+      debtAmount: deficit,
+      totalRequiredAmount: totalAmount,
+      recipient,
+      reasonText,
+      onSuccess: (updatedPayer, updatedRecipient) => {
+        showFloatingEffect(payer.id, totalAmount, false);
+        if (recipient) {
+          showFloatingEffect(recipient.id, totalAmount, true);
+        }
+        if (isSocialFundDonation) {
+          setSocialFund(prev => prev + totalAmount);
+        }
+
+        addLog(payer.id, `💸 ${payer.name}가 구제 조치를 통해 [${reasonTitle}] ${totalAmount}만 원을 정상 완납했습니다.`, category === 'toll' ? 'toll' : category === 'golden_key' ? 'golden_key' : 'event');
+
+        setPlayers(prev => {
+          const next = prev.map(p => {
+            if (p.id === updatedPayer.id) return updatedPayer;
+            if (updatedRecipient && p.id === updatedRecipient.id) return updatedRecipient;
+            return p;
+          });
+          return updateTotalAssets(next, cellsRef.current);
+        });
+
+        setActiveModal(null);
+        setDebtModalData(null);
+        if (onCompleted) {
+          onCompleted(updatedPayer, updatedRecipient);
+        } else {
+          registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+        }
+      }
+    });
+    setActiveModal('debt');
+  };
+
+  // Execute Toll Payment (With Loan & Property Sale Rescue Support)
+  const executePayToll = (space: SpaceData, owner: Player, payer: Player, toll: number, currentTurnSeq?: number) => {
+    executeUniversalPayment({
+      payer,
+      totalAmount: toll,
+      recipient: owner,
+      reasonTitle: `${owner.name}의 [${space.name}] 통행료`,
+      reasonText: `${owner.name}의 [${space.name}] 통행료 ${toll}만 원 중 ${Math.max(0, toll - payer.money)}만 원 부족`,
+      category: 'toll',
+      currentTurnSeq
+    });
   };
 
   // Loan confirmation handler from EmergencyDebtModal
   const handleConfirmLoan = (loanAmount: number) => {
     if (!debtModalData) return;
-    const { payer, recipient, onSuccess } = debtModalData;
+    const { payer, debtAmount, totalRequiredAmount, recipient, onSuccess } = debtModalData;
+    const fullAmount = totalRequiredAmount || (payer.money + debtAmount);
 
     soundManager.playCashGain();
     const updatedPayer: Player = {
       ...payer,
-      money: 0, // Used all existing cash + loan to pay full toll
+      money: 0, // Used all existing cash + loan to pay full bill
       debt: (payer.debt || 0) + loanAmount,
       hasUsedLoan: true
     };
 
     const updatedRecipient: Player | null = recipient ? {
       ...recipient,
-      money: recipient.money + (payer.money + loanAmount)
+      money: recipient.money + fullAmount
     } : null;
 
     addLog(payer.id, `💳 ${payer.name}가 긴급 구제 대출 ${loanAmount}만 원을 실행하여 부채가 발생했습니다.`, 'event');
@@ -1371,7 +1566,7 @@ export default function App() {
       playerColor: payer.color,
       isAI: payer.isAI,
       title: `💳 [긴급 구제 대출 실행] (+${loanAmount}만 원)`,
-      detail: `${payer.name}님이 긴급 대출을 받아 통행료를 변제했습니다. (총 부채: ${updatedPayer.debt}만 원)`,
+      detail: `${payer.name}님이 긴급 대출을 받아 부족금을 완납했습니다. (총 부채: ${updatedPayer.debt}만 원)`,
       badge: `대출 빚 +${loanAmount}만`,
       badgeColor: 'indigo'
     });
@@ -1382,7 +1577,8 @@ export default function App() {
   // Property sale confirmation handler from EmergencyDebtModal
   const handleConfirmSellProperties = (soldSpaceIds: number[], totalRecoveredMoney: number) => {
     if (!debtModalData) return;
-    const { payer, debtAmount, recipient, onSuccess } = debtModalData;
+    const { payer, debtAmount, totalRequiredAmount, recipient, onSuccess } = debtModalData;
+    const fullAmount = totalRequiredAmount || (payer.money + debtAmount);
 
     // Reset sold cells
     setCells(prev => {
@@ -1398,8 +1594,7 @@ export default function App() {
     });
 
     const totalMoneyAvailable = payer.money + totalRecoveredMoney;
-    const fullToll = payer.money + debtAmount;
-    const remainingMoney = totalMoneyAvailable - fullToll;
+    const remainingMoney = totalMoneyAvailable - fullAmount;
 
     const updatedPayer: Player = {
       ...payer,
@@ -1408,11 +1603,11 @@ export default function App() {
 
     const updatedRecipient: Player | null = recipient ? {
       ...recipient,
-      money: recipient.money + fullToll
+      money: recipient.money + fullAmount
     } : null;
 
     soundManager.playCashGain();
-    addLog(payer.id, `🏬 ${payer.name}가 소유 도시 ${soldSpaceIds.length}개를 매각하여 +${totalRecoveredMoney}만 원을 확보하고 통행료를 완납했습니다.`, 'event');
+    addLog(payer.id, `🏬 ${payer.name}가 소유 도시 ${soldSpaceIds.length}개를 매각하여 +${totalRecoveredMoney}만 원을 확보하고 전액 완납했습니다.`, 'event');
     triggerBroadcast({
       category: 'purchase',
       playerId: payer.id,
@@ -1420,7 +1615,7 @@ export default function App() {
       playerColor: payer.color,
       isAI: payer.isAI,
       title: `🏬 [소유 도시 ${soldSpaceIds.length}개 긴급 매각]`,
-      detail: `매각 환급금 ${totalRecoveredMoney}만 원으로 부족금을 마련하여 통행료를 완납했습니다.`,
+      detail: `매각 환급금 ${totalRecoveredMoney}만 원으로 부족금을 마련하여 전액 완납했습니다.`,
       badge: `매각 +${totalRecoveredMoney}만`,
       badgeColor: 'amber'
     });
@@ -1540,50 +1735,30 @@ export default function App() {
       }
       case 'money_loss': {
         const loss = card.amount || 20;
-        soundManager.playTollPenalty();
-        showFloatingEffect(activePlayer.id, loss, false);
-        setPlayers(prev => {
-          const next = prev.map(p => p.id === activePlayer.id ? { ...p, money: p.money - loss } : p);
-          checkGameOver(next);
-          return updateTotalAssets(next, cellsRef.current);
-        });
-        addLog(activePlayer.id, `💸 ${card.title}로 -${loss}만 원 차감`, 'golden_key');
-        triggerBroadcast({
+        executeUniversalPayment({
+          payer: activePlayer,
+          totalAmount: loss,
+          recipient: null,
+          reasonTitle: `황금열쇠 [${card.title}]`,
+          reasonText: `황금열쇠 [${card.title}] 납부 비용 ${loss}만 원 중 ${Math.max(0, loss - activePlayer.money)}만 원 부족`,
           category: 'golden_key',
-          playerId: activePlayer.id,
-          playerName: activePlayer.name,
-          playerColor: activePlayer.color,
-          isAI: activePlayer.isAI,
-          title: `💸 [${card.title}] -${loss}만 원 차감`,
-          detail: card.description,
-          badge: `-${loss}만 원`,
-          badgeColor: 'rose'
+          currentTurnSeq: seq
         });
-        break;
+        return;
       }
       case 'donation': {
         const donation = card.amount || 15;
-        soundManager.playTollPenalty();
-        showFloatingEffect(activePlayer.id, donation, false);
-        setSocialFund(prev => prev + donation);
-        setPlayers(prev => {
-          const next = prev.map(p => p.id === activePlayer.id ? { ...p, money: p.money - donation } : p);
-          checkGameOver(next);
-          return updateTotalAssets(next, cellsRef.current);
-        });
-        addLog(activePlayer.id, `💖 사회복지기금에 ${donation}만 원 후원 완료`, 'golden_key');
-        triggerBroadcast({
+        executeUniversalPayment({
+          payer: activePlayer,
+          totalAmount: donation,
+          recipient: null,
+          reasonTitle: `황금열쇠 [${card.title}] 기금 후원`,
+          reasonText: `황금열쇠 [${card.title}] 후원금 ${donation}만 원 중 ${Math.max(0, donation - activePlayer.money)}만 원 부족`,
           category: 'golden_key',
-          playerId: activePlayer.id,
-          playerName: activePlayer.name,
-          playerColor: activePlayer.color,
-          isAI: activePlayer.isAI,
-          title: `💖 [${card.title}] 기금 후원 (-${donation}만 원)`,
-          detail: card.description,
-          badge: `기부 -${donation}만`,
-          badgeColor: 'rose'
+          isSocialFundDonation: true,
+          currentTurnSeq: seq
         });
-        break;
+        return;
       }
       case 'jackpot': {
         if (socialFund > 0) {
@@ -1613,17 +1788,17 @@ export default function App() {
       case 'escape_card': {
         soundManager.playCashGain();
         setPlayers(prev => prev.map(p => p.id === activePlayer.id ? { ...p, hasIslandEscapeCard: p.hasIslandEscapeCard + 1 } : p));
-        addLog(activePlayer.id, `🛶 무인도 탈출권 1장 획득 및 보관`, 'golden_key');
+        addLog(activePlayer.id, `🛶 [무인도 탈출권] 1장을 획득하여 인벤토리에 보관했습니다! (보유: ${activePlayer.hasIslandEscapeCard + 1}장)`, 'golden_key');
         triggerBroadcast({
           category: 'golden_key',
           playerId: activePlayer.id,
           playerName: activePlayer.name,
           playerColor: activePlayer.color,
           isAI: activePlayer.isAI,
-          title: `🛶 무인도 탈출권 획득!`,
-          detail: '무인도 조난 시 즉시 사용할 수 있는 비상 탈출권을 획득했습니다.',
-          badge: '탈출권 +1',
-          badgeColor: 'amber'
+          title: `🛶 [무인도 탈출권] 인벤토리 보관 완료!`,
+          detail: '무인도 조난 시 [탈출권 사용] 버튼을 눌러 소모 없이 즉시 탈출할 수 있습니다.',
+          badge: '탈출권 +1 보관',
+          badgeColor: 'purple'
         });
         break;
       }
@@ -1886,6 +2061,7 @@ export default function App() {
             isDestinationSelectionActive={activeModal === 'space_travel'}
             gameSpeed={currentSpeed}
             broadcast={boardBroadcast}
+            onOpenIslandModal={() => setActiveModal('island')}
             onCellClick={(id) => {
               if (activeModal === 'space_travel') {
                 warpToDestination(id);
@@ -1965,6 +2141,7 @@ export default function App() {
         <EmergencyDebtModal
           payer={debtModalData.payer}
           debtAmount={debtModalData.debtAmount}
+          totalRequiredAmount={debtModalData.totalRequiredAmount}
           recipient={debtModalData.recipient}
           reasonText={debtModalData.reasonText}
           spaces={BOARD_SPACES}
@@ -2028,6 +2205,17 @@ export default function App() {
             setActiveModal(null);
             registerTimer(() => endTurn(isDouble, currentSeq), speedConfig.modalActionDelayMs, currentSeq);
           }}
+        />
+      )}
+
+      {/* 8. Island Trapped Escape Action Modal */}
+      {activeModal === 'island' && !activePlayer.isAI && activePlayer.islandTurnsLeft > 0 && (
+        <IslandModal
+          player={activePlayer}
+          onUseEscapeCard={() => handleUseIslandEscapeCard(activePlayer)}
+          onPayEscapeFee={() => handlePayIslandBail(activePlayer)}
+          onTryDouble={handleTryIslandDouble}
+          onClose={() => setActiveModal(null)}
         />
       )}
     </div>

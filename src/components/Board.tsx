@@ -21,6 +21,7 @@ interface BoardProps {
   isDestinationSelectionActive?: boolean;
   gameSpeed?: GameSpeed;
   broadcast?: BoardBroadcastMessage | null;
+  onOpenIslandModal?: () => void;
 }
 
 export const Board: React.FC<BoardProps> = ({
@@ -38,7 +39,8 @@ export const Board: React.FC<BoardProps> = ({
   onCellClick,
   isDestinationSelectionActive,
   gameSpeed = 'normal',
-  broadcast = null
+  broadcast = null,
+  onOpenIslandModal
 }) => {
   const activePlayer = players[activePlayerIndex] || players[0];
 
@@ -168,6 +170,9 @@ export const Board: React.FC<BoardProps> = ({
               currentDice={currentDice}
               isDouble={isDouble}
               gameSpeed={gameSpeed}
+              islandTurnsLeft={activePlayer.islandTurnsLeft}
+              hasIslandEscapeCard={activePlayer.hasIslandEscapeCard}
+              onOpenIslandModal={onOpenIslandModal}
             />
           </div>
 

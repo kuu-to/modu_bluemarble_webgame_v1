@@ -12,13 +12,14 @@ import {
   ShieldAlert, 
   Coins,
   ArrowRight,
-  TrendingDown
+  Sparkles
 } from 'lucide-react';
 import { CountryFlag } from './CountryFlag';
 
 interface EmergencyDebtModalProps {
   payer: Player;
-  debtAmount: number; // Deficit amount needed to pay (e.g. toll - payer.money)
+  debtAmount: number; // Deficit amount needed to pay (requiredTotal - payer.money)
+  totalRequiredAmount?: number; // Total amount needed to pay (e.g. toll, tax, golden key fine)
   recipient: Player | null; // Person or bank/tax recipient
   reasonText: string;
   spaces: SpaceData[];
@@ -31,6 +32,7 @@ interface EmergencyDebtModalProps {
 export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
   payer,
   debtAmount,
+  totalRequiredAmount,
   recipient,
   reasonText,
   spaces,
@@ -39,6 +41,7 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
   onSellProperties,
   onBankrupt
 }) => {
+  const fullRequiredAmount = totalRequiredAmount || (payer.money + debtAmount);
   const [selectedAction, setSelectedAction] = useState<'loan' | 'sell' | null>(
     !payer.hasUsedLoan ? 'loan' : 'sell'
   );
@@ -69,7 +72,9 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
     return sum + (prop ? prop.sellPrice : 0);
   }, 0);
 
-  const canAffordWithSell = (payer.money + totalRecoveredMoney) >= debtAmount;
+  // Since debtAmount is the deficit, total recovered money must be >= debtAmount to cover the gap
+  const canAffordWithSell = totalRecoveredMoney >= debtAmount;
+  const remainingCashAfterSale = (payer.money + totalRecoveredMoney) - fullRequiredAmount;
 
   const toggleSelectProperty = (spaceId: number) => {
     setSelectedSellSpaces(prev => 
@@ -89,15 +94,15 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in">
       <motion.div
         initial={{ scale: 0.85, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.85, opacity: 0 }}
-        className="w-full max-w-lg bg-gradient-to-b from-[#220a0a] via-[#1a0c1e] to-slate-950 rounded-3xl border-2 border-rose-500/70 shadow-[0_0_50px_rgba(244,63,94,0.4)] overflow-hidden text-slate-100 flex flex-col max-h-[90vh]"
+        className="w-full max-w-lg bg-gradient-to-b from-[#240808] via-[#1a0a1c] to-slate-950 rounded-3xl border-2 border-rose-500/70 shadow-[0_0_50px_rgba(244,63,94,0.45)] overflow-hidden text-slate-100 flex flex-col max-h-[92vh]"
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-rose-800 via-red-600 to-rose-900 p-4 sm:p-5 flex items-center justify-between text-white shadow-md">
+        <div className="bg-gradient-to-r from-rose-800 via-red-600 to-rose-900 p-4 sm:p-5 flex items-center justify-between text-white shadow-md border-b border-rose-400/30">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-2xl bg-white/20 shadow-inner">
               <AlertTriangle className="w-6 h-6 text-yellow-300 animate-bounce" />
@@ -112,7 +117,7 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
             </div>
           </div>
           <div className="text-right">
-            <span className="text-[11px] text-rose-200">부족 금액</span>
+            <span className="text-[11px] text-rose-200 font-bold">부족 금액</span>
             <div className="text-2xl font-black font-num text-yellow-300">
               {debtAmount}만 원
             </div>
@@ -120,20 +125,24 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
         </div>
 
         {/* Status Breakdown */}
-        <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
-          <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 flex items-center justify-between">
+        <div className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
+          <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-3">
             <div>
-              <div className="text-xs text-slate-400">발생 사유</div>
-              <div className="text-sm font-bold text-slate-200 mt-0.5">{reasonText}</div>
-              {recipient && (
-                <div className="text-xs text-cyan-300 mt-0.5">
-                  수취인: <strong>{recipient.name}</strong>
-                </div>
-              )}
+              <div className="text-[11px] text-slate-400 font-semibold">발생 사유</div>
+              <div className="text-sm font-bold text-slate-100 mt-0.5 leading-snug">{reasonText}</div>
+              <div className="text-xs text-rose-300 mt-1 flex items-center gap-2">
+                <span>총 청구액: <strong className="font-num text-white">{fullRequiredAmount}만 원</strong></span>
+                <span>•</span>
+                {recipient ? (
+                  <span className="text-cyan-300">수취인: <strong>{recipient.name}</strong></span>
+                ) : (
+                  <span className="text-amber-300">납부처: <strong>국세청 / 복지기금 / 공공금고</strong></span>
+                )}
+              </div>
             </div>
-            <div className="text-right">
-              <div className="text-xs text-slate-400">현재 보유 현금</div>
-              <div className="text-base font-bold text-amber-400 font-num">
+            <div className="text-right shrink-0">
+              <div className="text-[11px] text-slate-400 font-semibold">현재 보유 현금</div>
+              <div className="text-lg font-black text-amber-400 font-num">
                 {payer.money}만 원
               </div>
             </div>
@@ -150,7 +159,7 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
                 payer.hasUsedLoan
                   ? 'bg-slate-900/40 border-slate-800/80 opacity-50 cursor-not-allowed text-slate-500'
                   : selectedAction === 'loan'
-                  ? 'bg-gradient-to-b from-indigo-950/80 to-slate-900 border-indigo-400 text-white shadow-[0_0_20px_rgba(99,102,241,0.35)] ring-1 ring-indigo-400'
+                  ? 'bg-gradient-to-b from-indigo-950/90 to-slate-900 border-indigo-400 text-white shadow-[0_0_20px_rgba(99,102,241,0.35)] ring-1 ring-indigo-400'
                   : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:bg-slate-800'
               }`}
             >
@@ -167,13 +176,13 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
                 </div>
                 <div className="font-bold text-sm text-slate-100">긴급 구제 대출</div>
                 <div className="text-[11px] text-slate-400 mt-1 leading-snug">
-                  부족한 {debtAmount}만 원을 빚으로 대출하여 즉시 지불합니다.
+                  부족한 {debtAmount}만 원을 빚으로 대출받아 즉시 완납합니다.
                 </div>
               </div>
 
               {!payer.hasUsedLoan && (
                 <div className="mt-2 text-[11.5px] font-bold text-indigo-300 font-num">
-                  + {debtAmount}만 원 대출
+                  + {debtAmount}만 원 대출 실행
                 </div>
               )}
             </button>
@@ -187,7 +196,7 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
                 ownedProperties.length === 0
                   ? 'bg-slate-900/40 border-slate-800/80 opacity-50 cursor-not-allowed text-slate-500'
                   : selectedAction === 'sell'
-                  ? 'bg-gradient-to-b from-amber-950/80 to-slate-900 border-amber-400 text-white shadow-[0_0_20px_rgba(245,158,11,0.35)] ring-1 ring-amber-400'
+                  ? 'bg-gradient-to-b from-amber-950/90 to-slate-900 border-amber-400 text-white shadow-[0_0_20px_rgba(245,158,11,0.35)] ring-1 ring-amber-400'
                   : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:bg-slate-800'
               }`}
             >
@@ -202,7 +211,7 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
                 </div>
                 <div className="font-bold text-sm text-slate-100">부동산 매각</div>
                 <div className="text-[11px] text-slate-400 mt-1 leading-snug">
-                  내 소유 도시와 건물을 매각하여 부족금을 마련합니다.
+                  소유 도시와 건물을 매각하여 부족금을 마련합니다.
                 </div>
               </div>
 
@@ -218,7 +227,7 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
               <div className="flex items-center justify-between text-xs text-slate-300">
                 <span className="font-bold">매각할 도시 선택 ({selectedSellSpaces.length}개 선택됨)</span>
                 <span className="font-num font-bold text-amber-300">
-                  확보 금액: {totalRecoveredMoney}만 원 / 필요: {debtAmount - payer.money}만 원
+                  확보 금액: {totalRecoveredMoney}만 원 / 필요 부족금: {debtAmount}만 원
                 </span>
               </div>
 
@@ -263,6 +272,13 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
                   })}
                 </div>
               )}
+
+              {canAffordWithSell && selectedSellSpaces.length > 0 && (
+                <div className="p-2.5 rounded-xl bg-emerald-950/60 border border-emerald-500/30 text-xs text-emerald-200 flex items-center justify-between">
+                  <span>✅ 완납 가능! 지불 후 잔여 현금:</span>
+                  <span className="font-black text-amber-300 font-num text-sm">+{remainingCashAfterSale}만 원</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -274,10 +290,10 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
                 <span>긴급 구제 대출 안내</span>
               </div>
               <p className="text-[11.5px] leading-relaxed text-indigo-200/90">
-                • 대출은 <strong>최초 1회</strong>만 승인되며, 부족한 <strong>{debtAmount}만 원</strong>의 빚이 발생하여 상대방에게 즉시 송금됩니다.
+                • 대출은 <strong>최초 1회</strong>만 승인되며, 부족한 <strong>{debtAmount}만 원</strong>의 빚이 발생하여 {recipient ? `${recipient.name}님에게` : '세금/비용으로'} 즉시 완납 처리됩니다.
               </p>
               <p className="text-[11.5px] leading-relaxed text-indigo-200/90">
-                • 빚은 게임 진행 중 <strong>[빚 갚기]</strong> 버튼으로 언제든 상환할 수 있으며, 시간 종료 시 최종 재산(총자산 - 빚) 계산에 반영됩니다.
+                • 빚은 게임 진행 중 우측 상단의 <strong>[빚 갚기]</strong> 버튼으로 언제든 상환할 수 있으며, 최종 순위(총자산 - 빚) 계산에 반영됩니다.
               </p>
             </div>
           )}
@@ -312,7 +328,7 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
             {selectedAction === 'loan' && (
               <>
                 <CreditCard className="w-4 h-4" />
-                <span>{debtAmount}만 원 대출 실행하기</span>
+                <span>{debtAmount}만 원 대출받고 완납하기</span>
               </>
             )}
             {selectedAction === 'sell' && (
@@ -320,8 +336,8 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
                 <Store className="w-4 h-4" />
                 <span>
                   {canAffordWithSell
-                    ? `선택 도시 매각 후 ${debtAmount}만 지불`
-                    : `매각액 부족 (+${totalRecoveredMoney}/${debtAmount - payer.money}만)`}
+                    ? `선택 도시 매각 후 ${fullRequiredAmount}만 원 완납`
+                    : `매각액 부족 (+${totalRecoveredMoney}/${debtAmount}만 원)`}
                 </span>
               </>
             )}

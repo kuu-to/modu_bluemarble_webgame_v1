@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Dices, Sparkles, Zap } from 'lucide-react';
+import { Dices, Sparkles, Zap, Compass, AlertTriangle } from 'lucide-react';
 import { GameSpeed } from '../types';
 
 interface DiceRollerProps {
@@ -13,6 +13,9 @@ interface DiceRollerProps {
   currentDice: [number, number];
   isDouble: boolean;
   gameSpeed?: GameSpeed;
+  islandTurnsLeft?: number;
+  hasIslandEscapeCard?: number;
+  onOpenIslandModal?: () => void;
 }
 
 export const DiceRoller: React.FC<DiceRollerProps> = ({
@@ -23,7 +26,10 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
   currentTurnPlayerName,
   isAI,
   currentDice,
-  isDouble
+  isDouble,
+  islandTurnsLeft = 0,
+  hasIslandEscapeCard = 0,
+  onOpenIslandModal
 }) => {
   const renderDiceFace = (val: number) => {
     const dotPositions: Record<number, number[]> = {
@@ -55,6 +61,7 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
   };
 
   const diceSum = currentDice[0] + currentDice[1];
+  const isTrappedInIsland = islandTurnsLeft > 0;
 
   return (
     <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-emerald-950/80 backdrop-blur-md border border-emerald-500/40 shadow-xl relative">
@@ -73,6 +80,27 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Trapped in Island Alert Banner */}
+      {isTrappedInIsland && !isRolling && !isAI && (
+        <div className="w-full mb-1.5 p-1.5 rounded-xl bg-gradient-to-r from-emerald-900/90 via-teal-900/90 to-purple-950/90 border border-emerald-400/40 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-1.5 text-emerald-200 font-bold">
+            <span>🏝️</span>
+            <span>무인도 조난 ({islandTurnsLeft}턴)</span>
+          </div>
+
+          {onOpenIslandModal && (
+            <button
+              type="button"
+              onClick={onOpenIslandModal}
+              className="px-2 py-0.5 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-black text-[10.5px] shadow-sm flex items-center gap-1 cursor-pointer"
+            >
+              <Compass className="w-3 h-3" />
+              <span>탈출 옵션 {hasIslandEscapeCard > 0 ? `(카드 ${hasIslandEscapeCard}장)` : ''}</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Dice Visual Showcase */}
       <div className="flex items-center justify-center gap-3 sm:gap-4 my-1">
@@ -145,11 +173,21 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
             className={`w-full py-2.5 sm:py-3 px-4 rounded-xl font-display text-sm sm:text-base font-black flex items-center justify-center gap-2 transition-all transform duration-150 ${
               disabled || isRolling
                 ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                : isTrappedInIsland
+                ? 'bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600 hover:from-emerald-500 hover:to-teal-400 text-slate-950 shadow-lg shadow-emerald-500/30 hover:scale-[1.02] active:scale-[0.98] cursor-pointer border border-emerald-300'
                 : 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 shadow-lg shadow-orange-500/30 hover:scale-[1.02] active:scale-[0.98] cursor-pointer border border-yellow-300'
             }`}
           >
             <Dices className={`w-5 h-5 ${isRolling ? 'animate-spin' : 'animate-pulse'} text-slate-950`} />
-            <span>{isTumbling ? '주사위 굴리는 중...' : isRolling ? '이동 중...' : '주사위 굴리기 (ROLL)'}</span>
+            <span>
+              {isTumbling
+                ? '주사위 굴리는 중...'
+                : isRolling
+                ? '이동 중...'
+                : isTrappedInIsland
+                ? '더블 탈출 주사위 굴리기 (ROLL)'
+                : '주사위 굴리기 (ROLL)'}
+            </span>
           </button>
         )}
       </div>

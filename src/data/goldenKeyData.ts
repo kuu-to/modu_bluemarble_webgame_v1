@@ -23,15 +23,15 @@ export const GOLDEN_KEYS: GoldenKeyCard[] = [
     id: 3,
     title: "무인도 탈출권",
     subtitle: "비상 구명보트",
-    description: "무인도에 갇혔을 때 즉시 무상으로 탈출할 수 있는 보증서입니다.",
+    description: "무인도에 갇혔을 때 즉시 무상으로 탈출할 수 있는 보증서입니다. (인벤토리 보관)",
     icon: "🛶",
     type: "escape_card"
   },
   {
     id: 4,
     title: "정기 종합소득세 납부",
-    subtitle: "세무조사",
-    description: "국세청 세무조사로 인해 세금 25만 원을 납부합니다.",
+    subtitle: "국세청 세무조사",
+    description: "국세청 종합소득세 세무조사로 인해 세금 25만 원을 납부합니다.",
     icon: "💸",
     type: "money_loss",
     amount: 25
@@ -50,7 +50,7 @@ export const GOLDEN_KEYS: GoldenKeyCard[] = [
     id: 6,
     title: "사회복지기금 후원",
     subtitle: "따뜻한 기부",
-    description: "어려운 이웃을 위해 사회복지기금에 15만 원을 기부합니다.",
+    description: "어려운 이웃을 위해 사회복지기금에 15만 원을 기부합니다. (기금 적립)",
     icon: "💖",
     type: "donation",
     amount: 15
@@ -88,6 +88,42 @@ export const GOLDEN_KEYS: GoldenKeyCard[] = [
     description: "해외 명문 대학 초청 강연료로 20만 원을 수령합니다.",
     icon: "🎤",
     type: "money_gain",
+    amount: 20
+  },
+  {
+    id: 11,
+    title: "과속 운전 범칙금 납부",
+    subtitle: "교통 법규 위반",
+    description: "고속도로 과속 단속에 적발되어 범칙금 20만 원을 납부합니다.",
+    icon: "🚓",
+    type: "money_loss",
+    amount: 20
+  },
+  {
+    id: 12,
+    title: "정밀 건강검진 및 병원비",
+    subtitle: "의료비 지출",
+    description: "종합병원 정밀 건강검진 및 치료비 30만 원을 납부합니다.",
+    icon: "🏥",
+    type: "money_loss",
+    amount: 30
+  },
+  {
+    id: 13,
+    title: "건물 긴급 보수 및 방범비",
+    subtitle: "부동산 유지보수",
+    description: "소유 건물 유지보수 및 안전 관리 비용 20만 원을 납부합니다.",
+    icon: "🔧",
+    type: "money_loss",
+    amount: 20
+  },
+  {
+    id: 14,
+    title: "유니세프 희망 나눔 기부",
+    subtitle: "사랑의 모금",
+    description: "세계 어린이 구호를 위해 사회복지기금에 20만 원을 후원합니다.",
+    icon: "💝",
+    type: "donation",
     amount: 20
   }
 ];

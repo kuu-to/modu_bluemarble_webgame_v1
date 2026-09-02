@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { GoldenKeyCard } from '../types';
-import { Sparkles, Key, CheckCircle } from 'lucide-react';
+import { Sparkles, Key, CheckCircle, PackagePlus, Compass } from 'lucide-react';
 
 interface GoldenKeyModalProps {
   card: GoldenKeyCard;
@@ -9,6 +9,8 @@ interface GoldenKeyModalProps {
 }
 
 export const GoldenKeyModal: React.FC<GoldenKeyModalProps> = ({ card, onConfirm }) => {
+  const isEscapeCard = card.type === 'escape_card';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
       <motion.div
@@ -41,14 +43,25 @@ export const GoldenKeyModal: React.FC<GoldenKeyModalProps> = ({ card, onConfirm 
           <motion.div
             animate={{ scale: [1, 1.15, 1], rotate: [0, 5, -5, 0] }}
             transition={{ repeat: Infinity, duration: 2.5 }}
-            className="w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-700 p-1 flex items-center justify-center text-4xl shadow-xl shadow-amber-500/20 border-2 border-amber-300"
+            className={`w-20 h-20 rounded-2xl p-1 flex items-center justify-center text-4xl shadow-xl border-2 ${
+              isEscapeCard
+                ? 'bg-gradient-to-br from-purple-500 via-indigo-600 to-purple-800 border-purple-300 shadow-purple-500/30'
+                : 'bg-gradient-to-br from-amber-400 to-amber-700 border-amber-300 shadow-amber-500/20'
+            }`}
           >
             {card.icon}
           </motion.div>
 
           <div>
-            <div className="text-xs text-amber-400 font-bold tracking-wide uppercase mb-1">
-              {card.subtitle}
+            <div className="flex items-center justify-center gap-1.5 mb-1">
+              <span className="text-xs text-amber-400 font-bold tracking-wide uppercase">
+                {card.subtitle}
+              </span>
+              {isEscapeCard && (
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-500/30 text-purple-200 border border-purple-400/40">
+                  📦 보관 아이템
+                </span>
+              )}
             </div>
             <h3 className="text-xl font-black text-white font-display mb-2">
               {card.title}
@@ -56,6 +69,15 @@ export const GoldenKeyModal: React.FC<GoldenKeyModalProps> = ({ card, onConfirm 
             <p className="text-sm text-slate-300 leading-relaxed px-2 bg-slate-900/60 p-3 rounded-xl border border-amber-500/20">
               {card.description}
             </p>
+
+            {isEscapeCard && (
+              <div className="mt-2 text-xs text-purple-300 bg-purple-950/40 p-2.5 rounded-xl border border-purple-500/30 text-left flex items-start gap-2">
+                <PackagePlus className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                <span>
+                  <strong>인벤토리 보관:</strong> 지금 즉시 소모되지 않으며, 플레이어 인벤토리에 보관됩니다. 추후 무인도에 갇혔을 때 <strong>[탈출권 사용]</strong> 버튼을 눌러 사용할 수 있습니다.
+                </span>
+              </div>
+            )}
           </div>
 
           {card.amount && (
@@ -72,10 +94,23 @@ export const GoldenKeyModal: React.FC<GoldenKeyModalProps> = ({ card, onConfirm 
           <button
             id="golden-key-confirm-button"
             onClick={onConfirm}
-            className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-display font-black text-base shadow-lg shadow-amber-500/30 border border-amber-200 cursor-pointer flex items-center justify-center gap-2"
+            className={`w-full py-3.5 px-4 rounded-xl font-display font-black text-base shadow-lg cursor-pointer flex items-center justify-center gap-2 transition-all ${
+              isEscapeCard
+                ? 'bg-gradient-to-r from-purple-500 via-indigo-500 to-purple-600 hover:from-purple-400 hover:to-indigo-400 text-white shadow-purple-500/30 border border-purple-300'
+                : 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 shadow-amber-500/30 border border-amber-200'
+            }`}
           >
-            <Sparkles className="w-5 h-5" />
-            <span>카드 효과 적용하기</span>
+            {isEscapeCard ? (
+              <>
+                <PackagePlus className="w-5 h-5" />
+                <span>🛶 탈출권 보관함에 넣기</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-5 h-5" />
+                <span>카드 효과 적용하기</span>
+              </>
+            )}
           </button>
         </div>
       </motion.div>
