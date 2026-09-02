@@ -14,6 +14,7 @@ interface BuildingModelProps {
   spaceId?: number;
   cityName?: string;
   isSpecialLand?: boolean;
+  orientation?: 'horizontal' | 'vertical';
 }
 
 /**
@@ -181,15 +182,15 @@ export const BuildingModel: React.FC<BuildingModelProps> = ({
   ownerColor,
   spaceId = 0,
   cityName = '',
-  isSpecialLand
+  isSpecialLand,
+  orientation = 'horizontal'
 }) => {
   const { hasVilla, hasBuilding, hasHotel, isLandmark } = buildings;
 
   // 1. 랜드마크 (LANDMARK):
-  // 랜드마크를 세울 경우 세웠던 모든 건물을 치우고, 그 자리에 그 도시의 실제 랜드마크를 플레이어 색으로 세움
   if (isLandmark) {
     return (
-      <div className="relative flex items-center justify-center w-full h-full pointer-events-none z-10 px-0.5">
+      <div className="relative flex items-center justify-center w-full h-full pointer-events-none z-10 p-0.5">
         <motion.div
           initial={{ scale: 0, y: -20, rotateY: 90 }}
           animate={{ scale: 1, y: 0, rotateY: 0 }}
@@ -218,7 +219,7 @@ export const BuildingModel: React.FC<BuildingModelProps> = ({
           </motion.div>
 
           {/* 도시별 실제 랜드마크 3D 모델 */}
-          <div className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center">
+          <div className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center">
             <CityLandmarkIcon
               spaceId={spaceId}
               cityName={cityName}
@@ -231,12 +232,18 @@ export const BuildingModel: React.FC<BuildingModelProps> = ({
   }
 
   // 2. 일반 건물들 (별장 🏡, 빌딩 🏢, 호텔 🏨)
-  // [별장 슬롯] [빌딩 슬롯] [호텔 슬롯] 3개의 지정석에 순서대로 세워짐
-  // 아직 짓지 않은 슬롯은 자리가 보존됨 (image3.png 완벽 반영)
+  const isVertical = orientation === 'vertical';
+
   return (
-    <div className="flex items-end justify-center gap-0.5 sm:gap-1 w-full h-full pointer-events-none z-10 px-0.5">
+    <div
+      className={`flex ${
+        isVertical
+          ? 'flex-col items-center justify-around py-0.5 gap-0.5'
+          : 'flex-row items-end justify-center px-0.5 gap-0.5 sm:gap-1'
+      } w-full h-full pointer-events-none z-10`}
+    >
       {/* 슬롯 1: 별장 자리 */}
-      <div className="flex-1 flex items-center justify-center min-w-0 h-full">
+      <div className="flex-1 flex items-center justify-center min-w-0 min-h-0">
         {hasVilla ? (
           <motion.div
             initial={{ scale: 0, y: -15, rotate: -10 }}
@@ -248,12 +255,12 @@ export const BuildingModel: React.FC<BuildingModelProps> = ({
             <VillaMiniature color={ownerColor} size="sm" />
           </motion.div>
         ) : (
-          <div className="w-3.5 h-3.5 rounded-[1px] border border-dashed border-black/20 flex items-center justify-center opacity-30" />
+          <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60 flex items-center justify-center opacity-40" />
         )}
       </div>
 
       {/* 슬롯 2: 빌딩 자리 */}
-      <div className="flex-1 flex items-center justify-center min-w-0 h-full">
+      <div className="flex-1 flex items-center justify-center min-w-0 min-h-0">
         {hasBuilding ? (
           <motion.div
             initial={{ scale: 0, y: -15 }}
@@ -265,12 +272,12 @@ export const BuildingModel: React.FC<BuildingModelProps> = ({
             <BuildingMiniature color={ownerColor} size="sm" />
           </motion.div>
         ) : (
-          <div className="w-3.5 h-4.5 rounded-[1px] border border-dashed border-black/20 flex items-center justify-center opacity-30" />
+          <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60 flex items-center justify-center opacity-40" />
         )}
       </div>
 
       {/* 슬롯 3: 호텔 자리 */}
-      <div className="flex-1 flex items-center justify-center min-w-0 h-full">
+      <div className="flex-1 flex items-center justify-center min-w-0 min-h-0">
         {hasHotel ? (
           <motion.div
             initial={{ scale: 0, y: -15, rotate: 10 }}
@@ -282,7 +289,7 @@ export const BuildingModel: React.FC<BuildingModelProps> = ({
             <HotelMiniature color={ownerColor} size="sm" />
           </motion.div>
         ) : (
-          <div className="w-3.5 h-4.5 rounded-[1px] border border-dashed border-black/20 flex items-center justify-center opacity-30" />
+          <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60 flex items-center justify-center opacity-40" />
         )}
       </div>
     </div>

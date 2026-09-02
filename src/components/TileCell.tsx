@@ -158,43 +158,341 @@ export const TileCell: React.FC<TileCellProps> = ({
           )}
         </div>
       ) : space.type === 'golden_key' ? (
-        // 🌟 2. 황금열쇠 (GOLDEN KEY) 타일 🌟
-        <div className="w-full h-full flex flex-col items-center justify-between text-center bg-gradient-to-b from-[#fef08a] via-[#fde047] to-[#eab308] p-1 border border-amber-300 shadow-inner">
-          <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-amber-500/80 text-amber-950 flex items-center justify-center shadow-xs border border-amber-600/60 mt-0.5">
-            <span className="text-xs sm:text-sm">🔑</span>
-          </div>
-          <div className="flex flex-col items-center">
-            <span className="text-[9.5px] sm:text-[11px] font-black text-amber-950 font-display leading-tight">
-              황금열쇠
+        // 🌟 2. 황금열쇠 (GOLDEN KEY) 타일 - 방향별 최적화 🌟
+        isWest ? (
+          <div className="w-full h-full flex flex-row items-center justify-between text-center bg-gradient-to-r from-[#fef08a] via-[#fde047] to-[#eab308] p-1 border border-amber-300 shadow-inner">
+            <span className="text-[7px] sm:text-[8px] font-extrabold text-amber-900 tracking-wider bg-amber-300/90 px-0.5 py-1 rounded">
+              CARD
             </span>
-            <span className="text-[7px] sm:text-[8px] font-extrabold text-amber-900/90 tracking-widest bg-amber-300/80 px-1 rounded">
+            <div className="flex flex-col items-center justify-center">
+              <span className="text-[9px] sm:text-[10px] font-black text-amber-950 font-display leading-tight">
+                황금열쇠
+              </span>
+            </div>
+            <div className="w-5 h-5 rounded-full bg-amber-500/80 text-amber-950 flex items-center justify-center shadow-xs border border-amber-600/60">
+              <span className="text-xs">🔑</span>
+            </div>
+          </div>
+        ) : isEast ? (
+          <div className="w-full h-full flex flex-row items-center justify-between text-center bg-gradient-to-r from-[#eab308] via-[#fde047] to-[#fef08a] p-1 border border-amber-300 shadow-inner">
+            <div className="w-5 h-5 rounded-full bg-amber-500/80 text-amber-950 flex items-center justify-center shadow-xs border border-amber-600/60">
+              <span className="text-xs">🔑</span>
+            </div>
+            <div className="flex flex-col items-center justify-center">
+              <span className="text-[9px] sm:text-[10px] font-black text-amber-950 font-display leading-tight">
+                황금열쇠
+              </span>
+            </div>
+            <span className="text-[7px] sm:text-[8px] font-extrabold text-amber-900 tracking-wider bg-amber-300/90 px-0.5 py-1 rounded">
               CARD
             </span>
           </div>
-          <div className="w-full h-1 bg-amber-600/30 rounded-full" />
-        </div>
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-between text-center bg-gradient-to-b from-[#fef08a] via-[#fde047] to-[#eab308] p-1 border border-amber-300 shadow-inner">
+            <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-amber-500/80 text-amber-950 flex items-center justify-center shadow-xs border border-amber-600/60 mt-0.5">
+              <span className="text-xs sm:text-sm">🔑</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="text-[9.5px] sm:text-[11px] font-black text-amber-950 font-display leading-tight">
+                황금열쇠
+              </span>
+              <span className="text-[7px] sm:text-[8px] font-extrabold text-amber-900/90 tracking-widest bg-amber-300/80 px-1 rounded">
+                CARD
+              </span>
+            </div>
+            <div className="w-full h-1 bg-amber-600/30 rounded-full" />
+          </div>
+        )
       ) : space.type === 'tax' ? (
-        // 🌟 3. 국세청 (TAX) 타일 🌟
-        <div className="w-full h-full flex flex-col items-center justify-between text-center bg-gradient-to-b from-rose-100 via-rose-50 to-rose-100 p-1 border border-rose-300">
-          <span className="text-lg sm:text-xl">💰</span>
-          <div className="flex flex-col items-center">
-            <span className="text-[10px] sm:text-xs font-black text-rose-950 font-display">
+        // 🌟 3. 국세청 (TAX) 타일 - 방향별 최적화 🌟
+        isEast ? (
+          <div className="w-full h-full flex flex-row items-center justify-between text-center bg-gradient-to-r from-rose-100 via-rose-50 to-rose-100 p-1 border border-rose-300">
+            <span className="text-base sm:text-lg">💰</span>
+            <span className="text-[9.5px] sm:text-[11px] font-black text-rose-950 font-display">
               국세청
             </span>
-            <span className="text-[7.5px] sm:text-[8.5px] text-rose-900 font-bold bg-rose-200/90 px-1 rounded border border-rose-300 mt-0.5">
+            <span className="text-[7px] sm:text-[8px] text-rose-900 font-bold bg-rose-200/90 px-0.5 py-1 rounded border border-rose-300">
               세금 10%
             </span>
           </div>
-          <div className="w-full h-1 bg-rose-500/30 rounded-full" />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-between text-center bg-gradient-to-b from-rose-100 via-rose-50 to-rose-100 p-1 border border-rose-300">
+            <span className="text-lg sm:text-xl">💰</span>
+            <div className="flex flex-col items-center">
+              <span className="text-[10px] sm:text-xs font-black text-rose-950 font-display">
+                국세청
+              </span>
+              <span className="text-[7.5px] sm:text-[8.5px] text-rose-900 font-bold bg-rose-200/90 px-1 rounded border border-rose-300 mt-0.5">
+                세금 10%
+              </span>
+            </div>
+            <div className="w-full h-1 bg-rose-500/30 rounded-full" />
+          </div>
+        )
+      ) : isWest ? (
+        // 🌟 4-A. 서쪽 (WEST) 타일: [좌측: 가격/통행료] | [중앙: 국기+도시명 세로] | [우측: 건물 부지 세로] 🌟
+        <div className="w-full h-full flex flex-row justify-between items-stretch relative overflow-hidden bg-white">
+          {/* 1. 좌측 (외곽): 가격 / 통행료 세로 뱃지 */}
+          <div className="w-[24%] min-w-[20px] flex items-center justify-center p-0.5 border-r border-slate-200">
+            {owner ? (
+              <div
+                className="w-full h-full rounded-[2px] py-1 flex flex-col items-center justify-center font-black text-[7.5px] sm:text-[8.5px] tracking-tight border shadow-xs leading-tight"
+                style={{
+                  backgroundColor: owner.color,
+                  borderColor: owner.glowColor || '#ffffff',
+                  color: owner.airplaneColor === 'white' ? '#0f172a' : '#ffffff'
+                }}
+              >
+                <span>료</span>
+                <span className="font-num font-bold text-[8px] sm:text-[9px]">{cellState.currentToll}</span>
+                <span>만</span>
+              </div>
+            ) : (
+              <div className="w-full h-full rounded-[2px] py-1 flex flex-col items-center justify-center font-bold text-[7.5px] sm:text-[8.5px] tracking-tight bg-slate-900 text-amber-300 border border-slate-700 shadow-xs leading-tight">
+                <span className="font-num font-bold text-[8.5px] sm:text-[9.5px]">{space.price}</span>
+                <span className="text-[6.5px] sm:text-[7.5px]">만원</span>
+              </div>
+            )}
+          </div>
+
+          {/* 2. 중앙: 국기 (상단) + 도시명 세로 (하단) */}
+          <div className="flex-1 flex flex-col items-center justify-center px-0.5 py-1 text-center min-w-0 bg-white gap-0.5">
+            {/* 국기 */}
+            <div className="w-5 h-3.5 sm:w-6 sm:h-4 flex items-center justify-center shrink-0">
+              {CITY_COUNTRY_CODES[space.id] ? (
+                <CountryFlag spaceId={space.id} size="sm" />
+              ) : (
+                <span className="text-[10px] sm:text-xs leading-none">{space.icon || '📍'}</span>
+              )}
+            </div>
+            {/* 도시 이름 (세로 배치) */}
+            <div className="flex flex-col items-center justify-center font-black text-[9px] sm:text-[10.5px] text-slate-900 tracking-tight font-display leading-[1.05]">
+              {space.name.split('').map((char, idx) => (
+                <span key={idx} className="block">{char}</span>
+              ))}
+            </div>
+          </div>
+
+          {/* 3. 우측 (보드 안쪽): 건물 부지 영역 (세로 3슬롯) */}
+          <div
+            className="w-[38%] min-w-[24px] sm:min-w-[28px] h-full flex flex-col items-center justify-around p-0.5 relative transition-colors duration-300 shadow-xs border-l"
+            style={{
+              backgroundColor: plotBgColor,
+              borderColor: plotBorderColor
+            }}
+          >
+            {/* 소유주 체크 엠블럼 또는 랜드마크 왕관 */}
+            {owner && (
+              <div className="absolute top-0.5 left-0.5 z-20 flex items-center gap-0.5">
+                <div
+                  className="w-2.5 h-2.5 rounded-full border border-white shadow-xs flex items-center justify-center text-[7px] font-black text-white"
+                  style={{ backgroundColor: owner.color }}
+                >
+                  ✓
+                </div>
+              </div>
+            )}
+
+            {isLandmark && (
+              <div className="absolute top-0.5 right-0.5 z-20">
+                <Crown className="w-2.5 h-2.5 text-yellow-200 fill-yellow-300 drop-shadow" />
+              </div>
+            )}
+
+            {/* 건물 모델 (별장, 빌딩, 호텔 수직 3슬롯 또는 랜드마크) */}
+            {owner && hasAnyBuilding ? (
+              <BuildingModel
+                buildings={cellState.buildings}
+                ownerColor={owner.color}
+                spaceId={space.id}
+                cityName={space.name}
+                isSpecialLand={space.isSpecialLand}
+                orientation="vertical"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-around gap-0.5 w-full h-full opacity-40 py-0.5">
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60" title="별장 자리" />
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60" title="빌딩 자리" />
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60" title="호텔 자리" />
+              </div>
+            )}
+          </div>
+        </div>
+      ) : isEast ? (
+        // 🌟 4-B. 동쪽 (EAST) 타일: [좌측: 건물 부지 세로] | [중앙: 도시명 세로+국기] | [우측: 가격/통행료] 🌟
+        <div className="w-full h-full flex flex-row justify-between items-stretch relative overflow-hidden bg-white">
+          {/* 1. 좌측 (보드 안쪽): 건물 부지 영역 (세로 3슬롯) */}
+          <div
+            className="w-[38%] min-w-[24px] sm:min-w-[28px] h-full flex flex-col items-center justify-around p-0.5 relative transition-colors duration-300 shadow-xs border-r"
+            style={{
+              backgroundColor: plotBgColor,
+              borderColor: plotBorderColor
+            }}
+          >
+            {/* 소유주 체크 엠블럼 또는 랜드마크 왕관 */}
+            {owner && (
+              <div className="absolute top-0.5 left-0.5 z-20 flex items-center gap-0.5">
+                <div
+                  className="w-2.5 h-2.5 rounded-full border border-white shadow-xs flex items-center justify-center text-[7px] font-black text-white"
+                  style={{ backgroundColor: owner.color }}
+                >
+                  ✓
+                </div>
+              </div>
+            )}
+
+            {isLandmark && (
+              <div className="absolute top-0.5 right-0.5 z-20">
+                <Crown className="w-2.5 h-2.5 text-yellow-200 fill-yellow-300 drop-shadow" />
+              </div>
+            )}
+
+            {/* 건물 모델 (별장, 빌딩, 호텔 수직 3슬롯 또는 랜드마크) */}
+            {owner && hasAnyBuilding ? (
+              <BuildingModel
+                buildings={cellState.buildings}
+                ownerColor={owner.color}
+                spaceId={space.id}
+                cityName={space.name}
+                isSpecialLand={space.isSpecialLand}
+                orientation="vertical"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-around gap-0.5 w-full h-full opacity-40 py-0.5">
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60" title="별장 자리" />
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60" title="빌딩 자리" />
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60" title="호텔 자리" />
+              </div>
+            )}
+          </div>
+
+          {/* 2. 중앙: 도시명 세로 (상단) + 국기 (하단) */}
+          <div className="flex-1 flex flex-col items-center justify-center px-0.5 py-1 text-center min-w-0 bg-white gap-0.5">
+            {/* 도시 이름 (세로 배치) */}
+            <div className="flex flex-col items-center justify-center font-black text-[9px] sm:text-[10.5px] text-slate-900 tracking-tight font-display leading-[1.05]">
+              {space.name.split('').map((char, idx) => (
+                <span key={idx} className="block">{char}</span>
+              ))}
+            </div>
+            {/* 국기 */}
+            <div className="w-5 h-3.5 sm:w-6 sm:h-4 flex items-center justify-center shrink-0">
+              {CITY_COUNTRY_CODES[space.id] ? (
+                <CountryFlag spaceId={space.id} size="sm" />
+              ) : (
+                <span className="text-[10px] sm:text-xs leading-none">{space.icon || '📍'}</span>
+              )}
+            </div>
+          </div>
+
+          {/* 3. 우측 (외곽): 가격 / 통행료 세로 뱃지 */}
+          <div className="w-[24%] min-w-[20px] flex items-center justify-center p-0.5 border-l border-slate-200">
+            {owner ? (
+              <div
+                className="w-full h-full rounded-[2px] py-1 flex flex-col items-center justify-center font-black text-[7.5px] sm:text-[8.5px] tracking-tight border shadow-xs leading-tight"
+                style={{
+                  backgroundColor: owner.color,
+                  borderColor: owner.glowColor || '#ffffff',
+                  color: owner.airplaneColor === 'white' ? '#0f172a' : '#ffffff'
+                }}
+              >
+                <span>료</span>
+                <span className="font-num font-bold text-[8px] sm:text-[9px]">{cellState.currentToll}</span>
+                <span>만</span>
+              </div>
+            ) : (
+              <div className="w-full h-full rounded-[2px] py-1 flex flex-col items-center justify-center font-bold text-[7.5px] sm:text-[8.5px] tracking-tight bg-slate-900 text-amber-300 border border-slate-700 shadow-xs leading-tight">
+                <span className="font-num font-bold text-[8.5px] sm:text-[9.5px]">{space.price}</span>
+                <span className="text-[6.5px] sm:text-[7.5px]">만원</span>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : isNorth ? (
+        // 🌟 4-C. 북쪽 (NORTH) 타일: [상단: 도시명+국기] | [중단: 가격/통행료] | [하단: 건물 부지] 🌟
+        <div className="w-full h-full flex flex-col justify-between items-center relative overflow-hidden bg-white">
+          {/* 1. 상단 (외곽): 도시 이름 & 국기 */}
+          <div className="w-full flex-1 flex flex-col items-center justify-center px-1 py-0.5 text-center min-h-0 bg-white">
+            <span className="font-black text-[9.5px] sm:text-[11px] text-slate-900 tracking-tight leading-tight block truncate max-w-full font-display">
+              {space.name}
+            </span>
+            <div className="w-5 h-3.5 sm:w-6 sm:h-4 my-0.5 flex items-center justify-center shrink-0">
+              {CITY_COUNTRY_CODES[space.id] ? (
+                <CountryFlag spaceId={space.id} size="sm" />
+              ) : (
+                <span className="text-[10px] sm:text-xs leading-none">{space.icon || '📍'}</span>
+              )}
+            </div>
+          </div>
+
+          {/* 2. 중단: 가격 / 통행료 뱃지 */}
+          <div className="w-full px-0.5 py-0.5 border-y border-slate-200">
+            {owner ? (
+              <div
+                className="w-full rounded-[2px] py-0.2 text-center font-black text-[8px] sm:text-[9.5px] tracking-tight border shadow-xs"
+                style={{
+                  backgroundColor: owner.color,
+                  borderColor: owner.glowColor || '#ffffff',
+                  color: owner.airplaneColor === 'white' ? '#0f172a' : '#ffffff'
+                }}
+              >
+                료 {cellState.currentToll}만
+              </div>
+            ) : (
+              <div className="w-full rounded-[2px] py-0.2 text-center font-bold text-[8px] sm:text-[9.5px] tracking-tight bg-slate-900 text-amber-300 border border-slate-700 shadow-xs font-num">
+                {space.price}만원
+              </div>
+            )}
+          </div>
+
+          {/* 3. 하단 (보드 안쪽): 건물 부지 영역 (가로 3슬롯) */}
+          <div
+            className="w-full h-[40%] min-h-[22px] sm:min-h-[26px] flex items-center justify-center p-0.5 relative transition-colors duration-300 shadow-xs border-t"
+            style={{
+              backgroundColor: plotBgColor,
+              borderColor: plotBorderColor
+            }}
+          >
+            {/* 소유주 체크 엠블럼 또는 랜드마크 왕관 */}
+            {owner && (
+              <div className="absolute top-0.5 left-0.5 z-20 flex items-center gap-0.5">
+                <div
+                  className="w-2.5 h-2.5 rounded-full border border-white shadow-xs flex items-center justify-center text-[7px] font-black text-white"
+                  style={{ backgroundColor: owner.color }}
+                >
+                  ✓
+                </div>
+              </div>
+            )}
+
+            {isLandmark && (
+              <div className="absolute top-0.5 right-0.5 z-20">
+                <Crown className="w-2.5 h-2.5 text-yellow-200 fill-yellow-300 drop-shadow" />
+              </div>
+            )}
+
+            {/* 건물 모델 */}
+            {owner && hasAnyBuilding ? (
+              <BuildingModel
+                buildings={cellState.buildings}
+                ownerColor={owner.color}
+                spaceId={space.id}
+                cityName={space.name}
+                isSpecialLand={space.isSpecialLand}
+                orientation="horizontal"
+              />
+            ) : (
+              <div className="flex items-center justify-center gap-1 w-full h-full opacity-40 px-1">
+                <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60" title="별장 자리" />
+                <div className="w-3 h-3.5 rounded-[1px] border border-dashed border-white/60" title="빌딩 자리" />
+                <div className="w-3 h-3.5 rounded-[1px] border border-dashed border-white/60" title="호텔 자리" />
+              </div>
+            )}
+          </div>
         </div>
       ) : (
-        // 🌟 4. 일반 도시 / 관광지 / 특수지 타일 (Standard City Space) 🌟
-        // image3.png 구조:
-        // [상단] 건물 부지 (기본 초록색 -> 구매 시 플레이어 색상 전환 -> 별장, 빌딩, 호텔 / 랜드마크 배치)
-        // [중단] 도시 이름 & 국기 & 국가 정보 (건물이 다 지어져도 가려지지 않음)
-        // [하단] 가격 / 통행료 표시 뱃지
-        <div className="w-full h-full flex flex-col justify-between items-center relative overflow-hidden">
-          {/* 🌿 A. 상단: 건물 부지 영역 (초록색 기본 잔디 -> 매입/소유 시 플레이어 색상) 🌿 */}
+        // 🌟 4-D. 남쪽 (SOUTH) 타일: [상단: 건물 부지] | [중단: 도시명+국기] | [하단: 가격/통행료] 🌟
+        <div className="w-full h-full flex flex-col justify-between items-center relative overflow-hidden bg-white">
+          {/* 1. 상단 (보드 안쪽): 건물 부지 영역 (가로 3슬롯) */}
           <div
             className="w-full h-[40%] min-h-[22px] sm:min-h-[26px] flex items-center justify-center p-0.5 relative transition-colors duration-300 shadow-xs border-b"
             style={{
@@ -220,7 +518,7 @@ export const TileCell: React.FC<TileCellProps> = ({
               </div>
             )}
 
-            {/* 건물 모델 (별장, 빌딩, 호텔 3슬롯 또는 랜드마크) */}
+            {/* 건물 모델 */}
             {owner && hasAnyBuilding ? (
               <BuildingModel
                 buildings={cellState.buildings}
@@ -228,9 +526,9 @@ export const TileCell: React.FC<TileCellProps> = ({
                 spaceId={space.id}
                 cityName={space.name}
                 isSpecialLand={space.isSpecialLand}
+                orientation="horizontal"
               />
             ) : (
-              // 아직 건물이 없을 때: 3개 슬롯 가이드라인 (별장, 빌딩, 호텔 자리)
               <div className="flex items-center justify-center gap-1 w-full h-full opacity-40 px-1">
                 <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60" title="별장 자리" />
                 <div className="w-3 h-3.5 rounded-[1px] border border-dashed border-white/60" title="빌딩 자리" />
@@ -239,25 +537,21 @@ export const TileCell: React.FC<TileCellProps> = ({
             )}
           </div>
 
-          {/* 🏛️ B. 중단: 도시 이름 & 국기 & 국가 정보 (항상 100% 또렷하게 보임) 🏛️ */}
+          {/* 2. 중단: 도시 이름 & 국기 & 국가 정보 */}
           <div className="w-full flex-1 flex flex-col items-center justify-center px-1 py-0.5 text-center min-h-0 bg-white">
             <span className="font-black text-[9.5px] sm:text-[11px] text-slate-900 tracking-tight leading-tight block truncate max-w-full font-display">
               {space.name}
             </span>
-
-            {/* 국기 이미지 (SVG Flag) */}
             <div className="w-5 h-3.5 sm:w-6 sm:h-4 my-0.5 flex items-center justify-center shrink-0">
               {CITY_COUNTRY_CODES[space.id] ? (
                 <CountryFlag spaceId={space.id} size="sm" />
               ) : (
-                <span className="text-[10px] sm:text-xs leading-none">
-                  {space.icon || '📍'}
-                </span>
+                <span className="text-[10px] sm:text-xs leading-none">{space.icon || '📍'}</span>
               )}
             </div>
           </div>
 
-          {/* 💰 C. 하단: 가격 / 통행료 뱃지 (고대비 깔끔한 폰트) 💰 */}
+          {/* 3. 하단 (외곽): 가격 / 통행료 뱃지 */}
           <div className="w-full px-0.5 pb-0.5">
             {owner ? (
               <div
