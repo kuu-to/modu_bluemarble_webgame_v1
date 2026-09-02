@@ -89,8 +89,16 @@ export const TileCell: React.FC<TileCellProps> = ({
 
   // Plot background color (초록색 기본 -> 매입/구매 시 소유주 플레이어 색상으로 전환)
   const defaultPlotColor = '#15803d'; // Classic Blue Marble Tabletop Lawn Green
-  const plotBgColor = owner ? owner.color : defaultPlotColor;
-  const plotBorderColor = owner ? (owner.glowColor || '#ffffff') : '#166534';
+  const plotBgColor = isLandmark
+    ? `linear-gradient(135deg, ${owner?.color || '#3b82f6'}, #1e1b4b)`
+    : owner
+    ? owner.color
+    : defaultPlotColor;
+  const plotBorderColor = isLandmark
+    ? '#fcd34d'
+    : owner
+    ? (owner.glowColor || '#ffffff')
+    : '#166534';
 
   return (
     <div

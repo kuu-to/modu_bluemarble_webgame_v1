@@ -197,29 +197,32 @@ export const BuildingModel: React.FC<BuildingModelProps> = ({
           transition={{ type: 'spring', damping: 12, stiffness: 260 }}
           className="relative flex flex-col items-center justify-center w-full h-full"
         >
+          {/* 황금빛 랜드마크 받침대 & 외곽 테두리 (Gold Pedestal & Halo) */}
+          <div className="absolute inset-0 rounded-sm bg-amber-400/20 border-1.5 border-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.6)] pointer-events-none animate-pulse" />
+
           {/* 소유주 엠블럼 & 황금 왕관 */}
-          <div className="absolute -top-3.5 z-20 flex items-center justify-center">
+          <div className="absolute -top-3 z-20 flex items-center justify-center">
             <motion.div
-              animate={{ rotate: [-5, 5, -5], y: [0, -1, 0] }}
+              animate={{ rotate: [-4, 4, -4], y: [0, -1, 0] }}
               transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-              className="flex items-center gap-0.5 px-1 py-0.2 rounded-full shadow-lg border border-amber-300"
-              style={{ backgroundColor: ownerColor }}
+              className="flex items-center gap-0.5 px-1 py-0.2 rounded-full shadow-lg border border-amber-300 bg-amber-950/90 text-amber-200"
             >
-              <Crown className="w-2.5 h-2.5 text-yellow-200 fill-yellow-300 drop-shadow" />
+              <Crown className="w-2.5 h-2.5 text-yellow-300 fill-yellow-400 drop-shadow" />
+              <span className="text-[6.5px] font-black tracking-tighter text-amber-200">LM</span>
             </motion.div>
           </div>
 
-          {/* 반짝이는 빛 효과 */}
+          {/* 반짝이는 별빛 효과 */}
           <motion.div
             animate={{ opacity: [0.4, 1, 0.4], scale: [0.8, 1.2, 0.8] }}
             transition={{ repeat: Infinity, duration: 1.5 }}
-            className="absolute -top-1 right-0 text-amber-300 pointer-events-none"
+            className="absolute -top-1.5 right-0 text-amber-300 pointer-events-none"
           >
-            <Sparkles className="w-2.5 h-2.5 drop-shadow" />
+            <Sparkles className="w-3 h-3 drop-shadow" />
           </motion.div>
 
-          {/* 도시별 실제 랜드마크 3D 모델 */}
-          <div className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center">
+          {/* 도시별 실제 랜드마크 3D 모델 (더 크고 굵은 외곽선으로 선명화) */}
+          <div className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
             <CityLandmarkIcon
               spaceId={spaceId}
               cityName={cityName}
