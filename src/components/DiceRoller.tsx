@@ -1,10 +1,12 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Dices, Sparkles, Zap, Compass, AlertTriangle } from 'lucide-react';
+import { Dices, Sparkles, Zap, Compass, Rocket } from 'lucide-react';
 import { GameSpeed } from '../types';
 
 interface DiceRollerProps {
   onRoll: () => void;
+  onSpaceTravel?: () => void;
+  isSpaceTravelQueued?: boolean;
   isRolling: boolean;
   isTumbling: boolean;
   disabled: boolean;
@@ -20,6 +22,8 @@ interface DiceRollerProps {
 
 export const DiceRoller: React.FC<DiceRollerProps> = ({
   onRoll,
+  onSpaceTravel,
+  isSpaceTravelQueued = false,
   isRolling,
   isTumbling,
   disabled,
@@ -80,6 +84,14 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Space Travel Status Banner */}
+      {isSpaceTravelQueued && !isRolling && (
+        <div className="w-full mb-1.5 p-1.5 rounded-xl bg-gradient-to-r from-purple-900/90 via-indigo-900/90 to-purple-950/90 border border-purple-400/50 flex items-center justify-center text-xs text-purple-200 font-bold gap-1.5 shadow-md">
+          <Rocket className="w-3.5 h-3.5 text-purple-300 animate-pulse" />
+          <span>우주정거장 워프 대기 중 (주사위 없이 즉시 이동)</span>
+        </div>
+      )}
 
       {/* Trapped in Island Alert Banner */}
       {isTrappedInIsland && !isRolling && !isAI && (
@@ -158,16 +170,45 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
         </div>
       </div>
 
-      {/* Roll Trigger Button */}
+      {/* Roll or Space Travel Trigger Button */}
       <div className="w-full mt-1.5">
         {isAI ? (
-          <div className="w-full py-2.5 px-4 rounded-xl bg-slate-900/80 border border-slate-700 text-center text-slate-300 text-xs font-semibold flex items-center justify-center gap-2">
-            <Zap className={`w-4 h-4 text-cyan-400 ${isRolling ? 'animate-spin' : ''}`} />
-            <span>{isRolling ? `${currentTurnPlayerName} 주사위 굴리는 중...` : `${currentTurnPlayerName} (AI) 주사위 생각 중...`}</span>
+          <div className={`w-full py-2.5 px-4 rounded-xl border text-center text-xs font-semibold flex items-center justify-center gap-2 ${
+            isSpaceTravelQueued
+              ? 'bg-purple-950/80 border-purple-500/60 text-purple-200'
+              : 'bg-slate-900/80 border-slate-700 text-slate-300'
+          }`}>
+            {isSpaceTravelQueued ? (
+              <>
+                <Rocket className="w-4 h-4 text-purple-300 animate-pulse" />
+                <span>{currentTurnPlayerName} (AI) 우주여행 목적지 선택 중...</span>
+              </>
+            ) : (
+              <>
+                <Zap className={`w-4 h-4 text-cyan-400 ${isRolling ? 'animate-spin' : ''}`} />
+                <span>{isRolling ? `${currentTurnPlayerName} 주사위 굴리는 중...` : `${currentTurnPlayerName} (AI) 주사위 생각 중...`}</span>
+              </>
+            )}
           </div>
+        ) : isSpaceTravelQueued ? (
+          <button
+            id="space-travel-button"
+            type="button"
+            onClick={onSpaceTravel}
+            disabled={disabled || isRolling}
+            className={`w-full py-2.5 sm:py-3 px-4 rounded-xl font-display text-sm sm:text-base font-black flex items-center justify-center gap-2 transition-all transform duration-150 ${
+              disabled || isRolling
+                ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                : 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] cursor-pointer border border-purple-300 animate-pulse'
+            }`}
+          >
+            <Rocket className="w-5 h-5 text-purple-200" />
+            <span>우주여행 하기 (WARP)</span>
+          </button>
         ) : (
           <button
             id="roll-dice-button"
+            type="button"
             onClick={onRoll}
             disabled={disabled || isRolling}
             className={`w-full py-2.5 sm:py-3 px-4 rounded-xl font-display text-sm sm:text-base font-black flex items-center justify-center gap-2 transition-all transform duration-150 ${

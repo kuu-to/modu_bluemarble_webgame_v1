@@ -361,17 +361,33 @@ export default function App() {
 
     const nextPlayer = playersRef.current[nextIdx];
     if (nextPlayer) {
-      triggerBroadcast({
-        category: 'turn',
-        playerId: nextPlayer.id,
-        playerName: nextPlayer.name,
-        playerColor: nextPlayer.color,
-        isAI: nextPlayer.isAI,
-        title: `🏁 [${nextPlayer.name}] 님의 차례입니다`,
-        detail: nextPlayer.isAI ? '컴퓨터 AI가 주사위 굴림 및 부동산 전략을 연산 중입니다...' : '🎲 주사위 굴리기 버튼을 눌러 이동하세요!',
-        badge: nextPlayer.isAI ? 'AI 턴' : '플레이어 턴',
-        badgeColor: nextPlayer.isAI ? 'purple' : 'emerald'
-      });
+      if (nextPlayer.spaceTravelQueued) {
+        triggerBroadcast({
+          category: 'space_travel',
+          playerId: nextPlayer.id,
+          playerName: nextPlayer.name,
+          playerColor: nextPlayer.color,
+          isAI: nextPlayer.isAI,
+          title: `🛸 [${nextPlayer.name}] 우주여행 차례입니다!`,
+          detail: nextPlayer.isAI
+            ? '컴퓨터 AI가 우주여행 목적지를 연산 중입니다...'
+            : '🚀 [우주여행 하기] 버튼을 눌러 원하는 목적지로 워프하세요!',
+          badge: '우주여행 턴',
+          badgeColor: 'purple'
+        });
+      } else {
+        triggerBroadcast({
+          category: 'turn',
+          playerId: nextPlayer.id,
+          playerName: nextPlayer.name,
+          playerColor: nextPlayer.color,
+          isAI: nextPlayer.isAI,
+          title: `🏁 [${nextPlayer.name}] 님의 차례입니다`,
+          detail: nextPlayer.isAI ? '컴퓨터 AI가 주사위 굴림 및 부동산 전략을 연산 중입니다...' : '🎲 주사위 굴리기 버튼을 눌러 이동하세요!',
+          badge: nextPlayer.isAI ? 'AI 턴' : '플레이어 턴',
+          badgeColor: nextPlayer.isAI ? 'purple' : 'emerald'
+        });
+      }
 
       // If next player is trapped in Island, open Island Escape Action Modal
       if (!nextPlayer.isAI && nextPlayer.islandTurnsLeft > 0) {
@@ -1020,6 +1036,15 @@ export default function App() {
     }, tickInterval);
   };
 
+  // Handle start of space travel for active human player
+  const handleStartSpaceTravel = () => {
+    const activePlayer = playersRef.current[activePlayerIndexRef.current];
+    if (!activePlayer || activePlayer.isBankrupt || isTurnBusy || isRolling) return;
+
+    soundManager.playGoldenKey();
+    setActiveModal('space_travel');
+  };
+
   // Warp directly to destination (Space travel)
   const warpToDestination = (destPos: number, currentTurnSeq?: number) => {
     const activePlayer = playersRef.current[activePlayerIndexRef.current];
@@ -1046,8 +1071,33 @@ export default function App() {
       badgeColor: 'purple'
     });
     
+    // In Blue Marble, passing start line (from pos 20 to 0~19) awards salary
+    const passedStart = activePlayer.pos > destPos;
+    if (passedStart) {
+      soundManager.playCashGain();
+      showFloatingEffect(activePlayer.id, SALARY_AMOUNT, true);
+      addLog(activePlayer.id, `🚀 우주여행 중 출발점 통과! 월급 +${SALARY_AMOUNT}만 원 지급`, 'event');
+      triggerBroadcast({
+        category: 'salary',
+        playerId: activePlayer.id,
+        playerName: activePlayer.name,
+        playerColor: activePlayer.color,
+        isAI: activePlayer.isAI,
+        title: `💰 [출발점 통과] 월급 +${SALARY_AMOUNT}만 원!`,
+        detail: `${activePlayer.name}님이 우주 비행 중 출발점을 경유하여 월급 ${SALARY_AMOUNT}만 원을 지급받았습니다.`,
+        badge: `월급 +${SALARY_AMOUNT}만`,
+        badgeColor: 'emerald'
+      });
+    }
+
     setPlayers(prev => {
-      const next = prev.map(p => p.id === activePlayer.id ? { ...p, pos: destPos } : p);
+      const next = prev.map(p => {
+        if (p.id === activePlayer.id) {
+          const salaryBonus = passedStart ? SALARY_AMOUNT : 0;
+          return { ...p, pos: destPos, money: p.money + salaryBonus, spaceTravelQueued: false };
+        }
+        return p;
+      });
       return updateTotalAssets(next, cellsRef.current);
     });
 
@@ -1850,6 +1900,13 @@ export default function App() {
     const aiTimer = registerTimer(() => {
       if (turnSeqRef.current !== currentSeq || isTurnBusyRef.current) return;
 
+      // If AI has space travel queued, warp directly without rolling dice!
+      if (activePlayer.spaceTravelQueued) {
+        const target = decideAISpaceTravelDestination(BOARD_SPACES, cellsRef.current, activePlayer, playersRef.current);
+        warpToDestination(target, currentSeq);
+        return;
+      }
+
       // If in island, decide whether to pay fee or try double
       if (activePlayer.islandTurnsLeft > 0) {
         if (activePlayer.hasIslandEscapeCard > 0) {
@@ -2071,6 +2128,7 @@ export default function App() {
             players={players}
             activePlayerIndex={activePlayerIndex}
             onRollDice={triggerDiceRoll}
+            onSpaceTravel={handleStartSpaceTravel}
             isRolling={isRolling}
             isTumbling={isTumbling}
             isDiceDisabled={isTurnBusy || isRolling || isTumbling || activePlayer.isAI || activeModal !== null}

@@ -11,6 +11,7 @@ interface BoardProps {
   players: Player[];
   activePlayerIndex: number;
   onRollDice: () => void;
+  onSpaceTravel?: () => void;
   isRolling: boolean;
   isTumbling: boolean;
   isDiceDisabled: boolean;
@@ -30,6 +31,7 @@ export const Board: React.FC<BoardProps> = ({
   players,
   activePlayerIndex,
   onRollDice,
+  onSpaceTravel,
   isRolling,
   isTumbling,
   isDiceDisabled,
@@ -169,6 +171,8 @@ export const Board: React.FC<BoardProps> = ({
           <div className="w-full max-w-xs z-20 my-auto">
             <DiceRoller
               onRoll={onRollDice}
+              onSpaceTravel={onSpaceTravel}
+              isSpaceTravelQueued={activePlayer.spaceTravelQueued}
               isRolling={isRolling}
               isTumbling={isTumbling}
               disabled={isDiceDisabled}
@@ -192,7 +196,13 @@ export const Board: React.FC<BoardProps> = ({
             </div>
 
             <span className="text-emerald-200 font-num font-semibold">
-              {activePlayer.isAI ? '🤖 컴퓨터 AI 차례' : '🎲 주사위를 굴려주세요!'}
+              {activePlayer.isAI
+                ? activePlayer.spaceTravelQueued
+                  ? '🛸 우주여행 목적지 연산 중...'
+                  : '🤖 컴퓨터 AI 차례'
+                : activePlayer.spaceTravelQueued
+                ? '🛸 [우주여행 하기]를 누르세요!'
+                : '🎲 주사위를 굴려주세요!'}
             </span>
           </div>
         </div>
