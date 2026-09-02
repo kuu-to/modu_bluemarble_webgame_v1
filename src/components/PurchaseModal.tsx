@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { SpaceData, CellState, Player } from '../types';
 import { calculateToll } from '../data/boardData';
-import { Building2, Home, Landmark, Hotel, Check, X, ShieldAlert, Sparkles, AlertCircle } from 'lucide-react';
+import { Home, Landmark, Check, X, ShieldAlert, Sparkles, AlertCircle } from 'lucide-react';
 import { CountryFlag, CITY_COUNTRY_CODES } from './CountryFlag';
+import { VillaMiniature, BuildingMiniature, HotelMiniature } from './BuildingModel';
+import { CityLandmarkIcon } from './CityLandmarks';
 
 interface PurchaseModalProps {
   space: SpaceData;
@@ -276,7 +278,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
               {/* 1. Villa (별장) */}
               <div
                 onClick={handleToggleVilla}
-                className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-between ${
                   hasVilla
                     ? 'bg-emerald-950/40 border-emerald-500/40 opacity-75'
                     : buyVilla
@@ -284,7 +286,10 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
                     : 'bg-slate-800/60 border-slate-700 hover:border-slate-600'
                 }`}
               >
-                <div className="text-xs font-bold text-slate-200 mb-1">🏡 1단계: 별장</div>
+                <div className="text-xs font-bold text-slate-200 mb-1">별장</div>
+                <div className="my-1 h-6 flex items-center justify-center">
+                  <VillaMiniature color={player.color} size="md" />
+                </div>
                 <div className="text-xs text-cyan-300 font-num font-bold">+{villaCost}만</div>
                 <div className="mt-1.5 flex justify-center">
                   <div className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] ${
@@ -298,7 +303,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
               {/* 2. Building (빌딩) - Requires Villa */}
               <div
                 onClick={handleToggleBuilding}
-                className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-between ${
                   hasBuilding
                     ? 'bg-emerald-950/40 border-emerald-500/40 opacity-75'
                     : buyBuilding
@@ -306,7 +311,10 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
                     : 'bg-slate-800/60 border-slate-700 hover:border-slate-600'
                 }`}
               >
-                <div className="text-xs font-bold text-slate-200 mb-1">🏢 2단계: 빌딩</div>
+                <div className="text-xs font-bold text-slate-200 mb-1">빌딩</div>
+                <div className="my-1 h-6 flex items-center justify-center">
+                  <BuildingMiniature color={player.color} size="md" />
+                </div>
                 <div className="text-xs text-cyan-300 font-num font-bold">+{buildingCost}만</div>
                 <div className="mt-1.5 flex justify-center">
                   <div className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] ${
@@ -320,7 +328,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
               {/* 3. Hotel (호텔) - Requires Building */}
               <div
                 onClick={handleToggleHotel}
-                className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-between ${
                   hasHotel
                     ? 'bg-emerald-950/40 border-emerald-500/40 opacity-75'
                     : buyHotel
@@ -328,7 +336,10 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
                     : 'bg-slate-800/60 border-slate-700 hover:border-slate-600'
                 }`}
               >
-                <div className="text-xs font-bold text-slate-200 mb-1">🏨 3단계: 호텔</div>
+                <div className="text-xs font-bold text-slate-200 mb-1">호텔</div>
+                <div className="my-1 h-6 flex items-center justify-center">
+                  <HotelMiniature color={player.color} size="md" />
+                </div>
                 <div className="text-xs text-cyan-300 font-num font-bold">+{hotelCost}만</div>
                 <div className="mt-1.5 flex justify-center">
                   <div className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] ${

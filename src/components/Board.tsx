@@ -52,8 +52,15 @@ export const Board: React.FC<BoardProps> = ({
       <div className="absolute bottom-1 left-1 w-4 h-4 border-b-2 border-l-2 border-amber-300/80 rounded-bl-sm pointer-events-none" />
       <div className="absolute bottom-1 right-1 w-4 h-4 border-b-2 border-r-2 border-amber-300/80 rounded-br-sm pointer-events-none" />
 
-      {/* 11x11 Grid Board */}
-      <div className="w-full h-full grid grid-cols-11 grid-rows-11 gap-[1.5px] sm:gap-[2px] relative rounded-xl overflow-hidden bg-[#24451a] border border-[#3b682b]">
+      {/* 11x11 Grid Board with Rectangular Perimeter Tiles & Scaled Square Corners */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1.6fr repeat(9, 1fr) 1.6fr',
+          gridTemplateRows: '1.6fr repeat(9, 1fr) 1.6fr',
+        }}
+        className="w-full h-full gap-[1.5px] sm:gap-[2px] relative rounded-xl overflow-hidden bg-[#24451a] border border-[#3b682b]"
+      >
         {/* Render the 40 perimeter tiles */}
         {spaces.map((space) => {
           const cellState = cells[space.id] || {
