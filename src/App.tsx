@@ -2062,7 +2062,7 @@ export default function App() {
       />
 
       {/* Main Responsive Grid Container */}
-      <div className="w-full max-w-7xl mx-auto flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4 sm:gap-6 z-10">
+      <div className="w-full max-w-[1560px] mx-auto flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4 sm:gap-6 z-10">
         {/* Left / Center Area: Board */}
         <main className="w-full flex-1 flex flex-col items-center justify-center">
           <Board

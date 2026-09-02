@@ -255,7 +255,7 @@ export const BuildingModel: React.FC<BuildingModelProps> = ({
             <VillaMiniature color={ownerColor} size="sm" />
           </motion.div>
         ) : (
-          <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60 flex items-center justify-center opacity-40" />
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-[1px] border border-dashed border-white/60 flex items-center justify-center opacity-40" />
         )}
       </div>
 
@@ -272,7 +272,7 @@ export const BuildingModel: React.FC<BuildingModelProps> = ({
             <BuildingMiniature color={ownerColor} size="sm" />
           </motion.div>
         ) : (
-          <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60 flex items-center justify-center opacity-40" />
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-[1px] border border-dashed border-white/60 flex items-center justify-center opacity-40" />
         )}
       </div>
 
@@ -289,7 +289,7 @@ export const BuildingModel: React.FC<BuildingModelProps> = ({
             <HotelMiniature color={ownerColor} size="sm" />
           </motion.div>
         ) : (
-          <div className="w-3 h-3 rounded-[1px] border border-dashed border-white/60 flex items-center justify-center opacity-40" />
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-[1px] border border-dashed border-white/60 flex items-center justify-center opacity-40" />
         )}
       </div>
     </div>
