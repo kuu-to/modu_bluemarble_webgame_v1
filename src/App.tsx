@@ -29,6 +29,7 @@ import { ModeSelectModal } from './components/ModeSelectModal';
 import { FloatingCashEffect } from './components/FloatingCashEffect';
 import { GameSetupScreen } from './components/GameSetupScreen';
 import { EmergencyDebtModal } from './components/EmergencyDebtModal';
+import { StartUpgradeModal, getUpgradeableCities } from './components/StartUpgradeModal';
 
 const INITIAL_MONEY = 300; // 300만 원 initial cash
 const SALARY_AMOUNT = 20; // 20만 원 salary
@@ -87,7 +88,7 @@ export default function App() {
   const [boardBroadcast, setBoardBroadcast] = useState<BoardBroadcastMessage | null>(null);
 
   // Active modal controls
-  const [activeModal, setActiveModal] = useState<null | 'purchase' | 'toll' | 'golden_key' | 'space_travel' | 'game_over' | 'debt'>(null);
+  const [activeModal, setActiveModal] = useState<null | 'purchase' | 'toll' | 'golden_key' | 'space_travel' | 'game_over' | 'debt' | 'start_upgrade'>(null);
   const [currentGoldenKey, setCurrentGoldenKey] = useState<GoldenKeyCard | null>(null);
   const [currentTollData, setCurrentTollData] = useState<{ space: SpaceData; owner: Player; payer: Player } | null>(null);
   const [debtModalData, setDebtModalData] = useState<{
@@ -749,6 +750,38 @@ export default function App() {
         badge: `월급 +${SALARY_AMOUNT}만`,
         badgeColor: 'emerald'
       });
+
+      // Special Rule: If landing exactly on start after turn 1 (turnCount > 1), player can upgrade 1 owned property
+      if (turnCount > 1) {
+        const upgradeableList = getUpgradeableCities(BOARD_SPACES, cellsRef.current, player);
+        if (upgradeableList.length > 0) {
+          if (player.isAI) {
+            registerTimer(() => {
+              const affordable = upgradeableList.filter(item => player.money >= item.nextUpgradeCost);
+              if (affordable.length > 0) {
+                // Pick best upgradeable property (Landmark priority, then highest tollDiff)
+                const best = [...affordable].sort((a, b) => {
+                  if (a.nextUpgradeType === 'landmark') return -1;
+                  if (b.nextUpgradeType === 'landmark') return 1;
+                  return b.tollDiff - a.tollDiff;
+                })[0];
+                handleConfirmStartUpgrade(best.space.id, best.nextBuildings, best.nextUpgradeCost, player, currentTurnSeq);
+              } else {
+                addLog(player.id, `🏁 ${player.name}가 출발점에 안착했습니다. (자금 부족으로 증축 패스)`, 'event');
+                registerTimer(() => endTurn(isDouble, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
+              }
+            }, speedConfig.aiActionDelayMs, currentTurnSeq);
+            return;
+          } else {
+            // Human player: open StartUpgradeModal
+            setActiveModal('start_upgrade');
+            return;
+          }
+        } else {
+          addLog(player.id, `🏁 ${player.name}가 출발점에 안착했습니다. (추가 증축 가능한 보유 도시 없음)`, 'event');
+        }
+      }
+
       registerTimer(() => endTurn(isDouble, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
     }
   };
@@ -1080,6 +1113,73 @@ export default function App() {
       player.id,
       `🏙️ ${player.name}가 [${space.name}]에 투자 완료! (비용: ${cost}만, 통행료: ${calculatedToll}만)${buildings.isLandmark ? ' 👑 랜드마크 달성!' : ''}`,
       buildings.isLandmark ? 'upgrade' : 'buy'
+    );
+
+    setActiveModal(null);
+    registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+  };
+
+  // Confirm Start Tile Remote Upgrade (Only 1 property upgradeable on Start landing after turn 1)
+  const handleConfirmStartUpgrade = (
+    spaceId: number,
+    newBuildings: { hasVilla: boolean; hasBuilding: boolean; hasHotel: boolean; isLandmark: boolean },
+    cost: number,
+    playerOverride?: Player,
+    currentTurnSeq?: number
+  ) => {
+    const seq = currentTurnSeq || turnSeqRef.current;
+    const player = playerOverride || playersRef.current[activePlayerIndexRef.current];
+    const space = BOARD_SPACES[spaceId];
+    if (!space) return;
+
+    soundManager.playBuildingBuild(newBuildings.isLandmark);
+    showFloatingEffect(player.id, cost, false);
+
+    const calculatedToll = calculateToll(space, newBuildings);
+
+    setCells(prev => ({
+      ...prev,
+      [space.id]: {
+        owner: player.id,
+        buildings: newBuildings,
+        currentToll: calculatedToll
+      }
+    }));
+
+    setPlayers(prev => {
+      const next = prev.map(p => p.id === player.id ? { ...p, money: p.money - cost } : p);
+      const updated = updateTotalAssets(next, {
+        ...cellsRef.current,
+        [space.id]: { owner: player.id, buildings: newBuildings, currentToll: calculatedToll }
+      });
+      return updated;
+    });
+
+    const bldNames: string[] = [];
+    if (newBuildings.isLandmark) bldNames.push('👑 랜드마크');
+    else {
+      if (newBuildings.hasHotel) bldNames.push('호텔');
+      if (newBuildings.hasBuilding) bldNames.push('빌딩');
+      if (newBuildings.hasVilla) bldNames.push('별장');
+    }
+    const bldDesc = bldNames.length > 0 ? bldNames[bldNames.length - 1] : '건물';
+
+    triggerBroadcast({
+      category: 'purchase',
+      playerId: player.id,
+      playerName: player.name,
+      playerColor: player.color,
+      isAI: player.isAI,
+      title: `🏁 [출발점 원격 건설] [${space.name}] ${bldDesc} 증축 완공! (-${cost}만)`,
+      detail: `${player.name}님이 출발점 보너스로 [${space.name}]에 건물을 추가 증축했습니다. (새 통행료: ${calculatedToll}만 원)`,
+      badge: newBuildings.isLandmark ? '👑 랜드마크' : `원격증축 -${cost}만`,
+      badgeColor: newBuildings.isLandmark ? 'amber' : 'emerald'
+    });
+
+    addLog(
+      player.id,
+      `🏁 [출발점 원격 건설] ${player.name}가 [${space.name}]에 ${bldDesc}을(를) 추가 증축했습니다! (비용: ${cost}만 원, 통행료: ${calculatedToll}만 원)${newBuildings.isLandmark ? ' 👑 랜드마크 달성!' : ''}`,
+      newBuildings.isLandmark ? 'upgrade' : 'buy'
     );
 
     setActiveModal(null);
@@ -1901,6 +2001,33 @@ export default function App() {
           reason={gameOverData.reason}
           onRestart={resetGame}
           onExitToLobby={handleExitToLobby}
+        />
+      )}
+
+      {/* 7. Start Tile Remote Upgrade Modal */}
+      {activeModal === 'start_upgrade' && !activePlayer.isAI && (
+        <StartUpgradeModal
+          spaces={BOARD_SPACES}
+          cells={cells}
+          player={activePlayer}
+          onConfirmUpgrade={(spaceId, newBuildings, cost) => handleConfirmStartUpgrade(spaceId, newBuildings, cost)}
+          onSkip={() => {
+            const currentSeq = turnSeqRef.current;
+            addLog(activePlayer.id, `🏁 ${activePlayer.name}가 출발점 원격 증축 기회를 건너뛰었습니다.`, 'event');
+            triggerBroadcast({
+              category: 'pass',
+              playerId: activePlayer.id,
+              playerName: activePlayer.name,
+              playerColor: activePlayer.color,
+              isAI: activePlayer.isAI,
+              title: `⏭️ [출발점] 원격 증축 건너뜀 (패스)`,
+              detail: `${activePlayer.name}님이 출발점 추가 증축 기회를 보류했습니다.`,
+              badge: '증축 보류',
+              badgeColor: 'slate'
+            });
+            setActiveModal(null);
+            registerTimer(() => endTurn(isDouble, currentSeq), speedConfig.modalActionDelayMs, currentSeq);
+          }}
         />
       )}
     </div>
