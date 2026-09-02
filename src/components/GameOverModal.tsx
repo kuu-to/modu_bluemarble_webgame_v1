@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Player } from '../types';
+import { AirplanePiece } from './AirplanePiece';
 import { Trophy, Crown, RotateCcw, Home } from 'lucide-react';
 
 interface GameOverModalProps {
@@ -52,7 +53,9 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
               <Crown className="w-3 h-3" /> 최종 우승자
             </div>
 
-            <div className="text-4xl my-1">{winner.avatar}</div>
+            <div className="my-2">
+              <AirplanePiece colorId={winner.airplaneColor || 'red'} size="xl" animate={true} />
+            </div>
             <div className="text-2xl font-bold text-white">{winner.name}</div>
             <div className="text-xs text-amber-300 mt-1">
               최종 총자산: <strong className="text-lg font-bold font-num text-amber-400">{winner.totalAssets}만 원</strong>
@@ -86,7 +89,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
                       }`}>
                         {index + 1}
                       </span>
-                      <span className="text-base">{p.avatar}</span>
+                      <AirplanePiece colorId={p.airplaneColor || 'red'} size="xs" />
                       <span className="font-semibold">{p.name}</span>
                       {p.isBankrupt && (
                         <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-900/80 text-rose-300 border border-rose-600">

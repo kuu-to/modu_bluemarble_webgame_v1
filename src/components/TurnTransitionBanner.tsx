@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Player } from '../types';
+import { AirplanePiece } from './AirplanePiece';
 import { Sparkles, Zap, Crown } from 'lucide-react';
 
 interface TurnTransitionBannerProps {
@@ -35,9 +36,9 @@ export const TurnTransitionBanner: React.FC<TurnTransitionBannerProps> = ({
             <motion.div
               animate={{ rotate: [0, 15, -15, 0], scale: [1, 1.2, 1] }}
               transition={{ repeat: Infinity, duration: 1.2 }}
-              className="text-2xl"
+              className="flex items-center justify-center p-1 bg-black/20 rounded-full"
             >
-              {player.avatar}
+              <AirplanePiece colorId={player.airplaneColor || 'red'} size="lg" />
             </motion.div>
 
             <div className="flex flex-col">

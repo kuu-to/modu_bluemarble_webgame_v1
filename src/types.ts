@@ -30,10 +30,13 @@ export interface CellState {
   currentToll: number;
 }
 
+export type AirplaneColorId = 'red' | 'blue' | 'white' | 'yellow';
+
 export interface Player {
   id: number;
   name: string;
   avatar: string;
+  airplaneColor: AirplaneColorId;
   color: string; // Tailwind color or hex
   glowColor: string;
   secondaryColor: string;

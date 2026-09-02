@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Player, GameLogEntry, GameModeConfig, GameSpeed } from '../types';
+import { AirplanePiece } from './AirplanePiece';
 import { 
   Users, 
   Bot, 
@@ -237,17 +238,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {/* Player Header */}
               <div className="flex items-center gap-2.5 mb-2">
                 <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center text-lg shadow-md border"
+                  className="w-10 h-10 rounded-xl flex items-center justify-center p-1 shadow-md border shrink-0"
                   style={{
-                    backgroundColor: p.color,
+                    backgroundColor: `${p.color}25`,
                     borderColor: p.glowColor || '#ffffff',
-                    boxShadow: `0 0 10px ${p.color}88`
+                    boxShadow: `0 0 10px ${p.color}55`
                   }}
                 >
-                  {p.avatar}
+                  <AirplanePiece colorId={p.airplaneColor || 'red'} size="md" />
                 </div>
 
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="font-bold text-sm text-white">
                       {p.name}

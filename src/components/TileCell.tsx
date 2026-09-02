@@ -1,6 +1,7 @@
 import React from 'react';
 import { SpaceData, CellState, Player } from '../types';
 import { BuildingModel } from './BuildingModel';
+import { AirplanePiece } from './AirplanePiece';
 import { Crown, Navigation } from 'lucide-react';
 import { CountryFlag, CITY_COUNTRY_CODES } from './CountryFlag';
 
@@ -251,7 +252,7 @@ export const TileCell: React.FC<TileCellProps> = ({
         </>
       )}
 
-      {/* 플레이어 말 (3D 입체 토큰) */}
+      {/* 플레이어 비행기 말 (클래식 부루마블 입체 비행기 토큰) */}
       {playersOnThisCell.length > 0 && (
         <div className="absolute inset-0 flex flex-wrap items-center justify-center content-center gap-0.5 sm:gap-1 pointer-events-none z-30 p-0.5 bg-black/10 backdrop-blur-[0.5px]">
           {playersOnThisCell.map((p) => {
@@ -265,18 +266,22 @@ export const TileCell: React.FC<TileCellProps> = ({
               >
                 {isActive && (
                   <div
-                    className="absolute -inset-1 rounded-full animate-ping opacity-75"
+                    className="absolute -inset-1.5 rounded-full animate-ping opacity-60 pointer-events-none"
                     style={{ backgroundColor: p.color }}
                   />
                 )}
                 <div
-                  className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 rounded-full border-2 border-white flex items-center justify-center text-[9px] sm:text-[11px] md:text-xs font-bold text-white shadow-lg"
+                  className="p-0.5 rounded-full flex items-center justify-center filter drop-shadow-md"
                   style={{
-                    backgroundColor: p.color,
-                    boxShadow: `0 2px 8px ${p.color}, 0 0 10px rgba(0,0,0,0.3)`
+                    backgroundColor: `${p.color}33`,
+                    border: `1.5px solid ${p.color}`
                   }}
                 >
-                  {p.avatar}
+                  <AirplanePiece
+                    colorId={p.airplaneColor || 'red'}
+                    size="sm"
+                    shadow={true}
+                  />
                 </div>
               </div>
             );

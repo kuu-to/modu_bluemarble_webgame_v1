@@ -10,7 +10,8 @@ import {
   SpaceData,
   GameSpeed,
   SPEED_CONFIGS,
-  BoardBroadcastMessage
+  BoardBroadcastMessage,
+  AirplaneColorId
 } from './types';
 import { BOARD_SPACES, calculateToll, calculateSpaceValue } from './data/boardData';
 import { getRandomGoldenKey } from './data/goldenKeyData';
@@ -44,6 +45,7 @@ export default function App() {
     timeLimitMinutes: 60
   });
   const [customNames, setCustomNames] = useState<string[]>(['플레이어 1', '플레이어 2']);
+  const [customAirplaneColors, setCustomAirplaneColors] = useState<AirplaneColorId[]>(['red', 'blue']);
   const [isModeModalOpen, setIsModeModalOpen] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
 
@@ -55,7 +57,7 @@ export default function App() {
 
   // Initialize Players based on config (Default: Human 2 Players, 0 AI)
   const [players, setPlayers] = useState<Player[]>(() =>
-    createPlayersForMode(2, 0, INITIAL_MONEY)
+    createPlayersForMode(2, 0, INITIAL_MONEY, undefined, ['red', 'blue'])
   );
 
   // Cells state
@@ -1903,13 +1905,24 @@ export default function App() {
   };
 
   // Start Game from setup screen
-  const handleStartGameFromSetup = (config: GameModeConfig, names: string[]) => {
+  const handleStartGameFromSetup = (
+    config: GameModeConfig, 
+    names: string[], 
+    airplaneColors: AirplaneColorId[]
+  ) => {
     clearAllGameTimers();
     turnSeqRef.current++;
     setGameConfig(config);
     setCustomNames(names);
+    setCustomAirplaneColors(airplaneColors);
 
-    const newPlayers = createPlayersForMode(config.humanCount, config.aiCount, INITIAL_MONEY, names);
+    const newPlayers = createPlayersForMode(
+      config.humanCount, 
+      config.aiCount, 
+      INITIAL_MONEY, 
+      names, 
+      airplaneColors
+    );
     setPlayers(newPlayers);
 
     const initCells: Record<number, CellState> = {};
@@ -1964,7 +1977,13 @@ export default function App() {
   const resetGame = () => {
     clearAllGameTimers();
     turnSeqRef.current++;
-    const newPlayers = createPlayersForMode(gameConfig.humanCount, gameConfig.aiCount, INITIAL_MONEY, customNames);
+    const newPlayers = createPlayersForMode(
+      gameConfig.humanCount, 
+      gameConfig.aiCount, 
+      INITIAL_MONEY, 
+      customNames,
+      customAirplaneColors
+    );
     setPlayers(newPlayers);
 
     const initCells: Record<number, CellState> = {};

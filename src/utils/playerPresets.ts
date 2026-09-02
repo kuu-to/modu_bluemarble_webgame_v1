@@ -1,4 +1,5 @@
-import { Player } from '../types';
+import { Player, AirplaneColorId } from '../types';
+import { AIRPLANE_CONFIGS, AIRPLANE_COLOR_ORDER } from './airplaneConfig';
 
 export interface PlayerPreset {
   id: number;
@@ -6,6 +7,7 @@ export interface PlayerPreset {
   aiName: string;
   avatarHuman: string;
   avatarAI: string;
+  airplaneColor: AirplaneColorId;
   color: string;
   glowColor: string;
   secondaryColor: string;
@@ -14,43 +16,47 @@ export interface PlayerPreset {
 export const PLAYER_PRESETS: PlayerPreset[] = [
   {
     id: 0,
-    humanName: "라이언",
+    humanName: "플레이어 1",
     aiName: "알파 (AI)",
-    avatarHuman: "🦁",
+    avatarHuman: "✈️",
     avatarAI: "🤖",
-    color: "#f43f5e", // Ruby Red
-    glowColor: "#fda4af",
-    secondaryColor: "#e11d48"
+    airplaneColor: "red",
+    color: "#ef4444", // Ruby Red
+    glowColor: "#fca5a5",
+    secondaryColor: "#b91c1c"
   },
   {
     id: 1,
-    humanName: "어피치",
+    humanName: "플레이어 2",
     aiName: "슬기 (AI)",
-    avatarHuman: "👩‍💼",
+    avatarHuman: "✈️",
     avatarAI: "🤖",
-    color: "#06b6d4", // Cyan Blue
-    glowColor: "#67e8f9",
-    secondaryColor: "#0891b2"
+    airplaneColor: "blue",
+    color: "#2563eb", // Royal Blue
+    glowColor: "#93c5fd",
+    secondaryColor: "#1d4ed8"
   },
   {
     id: 2,
-    humanName: "무지",
+    humanName: "플레이어 3",
     aiName: "베타 (AI)",
-    avatarHuman: "🐱",
+    avatarHuman: "✈️",
     avatarAI: "👾",
-    color: "#10b981", // Emerald Green
-    glowColor: "#6ee7b7",
-    secondaryColor: "#059669"
+    airplaneColor: "white",
+    color: "#f8fafc", // Classic White
+    glowColor: "#cbd5e1",
+    secondaryColor: "#475569"
   },
   {
     id: 3,
-    humanName: "프로도",
+    humanName: "플레이어 4",
     aiName: "오메가 (AI)",
-    avatarHuman: "🦊",
+    avatarHuman: "✈️",
     avatarAI: "🛰️",
-    color: "#a855f7", // Purple / Violet
-    glowColor: "#d8b4fe",
-    secondaryColor: "#9333ea"
+    airplaneColor: "yellow",
+    color: "#eab308", // Golden Yellow
+    glowColor: "#fef08a",
+    secondaryColor: "#a16207"
   }
 ];
 
@@ -58,7 +64,8 @@ export function createPlayersForMode(
   humanCount: 2 | 3 | 4,
   aiCount: number,
   initialMoney: number = 300,
-  customNames?: string[]
+  customNames?: string[],
+  customAirplaneColors?: AirplaneColorId[]
 ): Player[] {
   // Clamping AI count according to rules:
   // 2인의 경우: 0~2명 AI (총 2~4명)
@@ -77,22 +84,29 @@ export function createPlayersForMode(
   const players: Player[] = [];
 
   for (let i = 0; i < totalPlayers; i++) {
-    const preset = PLAYER_PRESETS[i];
     const isAI = i >= humanCount; // First humanCount players are human, rest are AI
     const aiIndex = i - humanCount + 1;
 
-    const defaultName = isAI ? `AI 봇 ${aiIndex}호` : preset.humanName;
+    const defaultName = isAI ? `AI 봇 ${aiIndex}호` : `플레이어 ${i + 1}`;
     const playerName = (customNames && customNames[i] && customNames[i].trim().length > 0)
       ? customNames[i].trim()
       : defaultName;
 
+    // Determine airplane color
+    const airplaneCol: AirplaneColorId = (customAirplaneColors && customAirplaneColors[i])
+      ? customAirplaneColors[i]
+      : AIRPLANE_COLOR_ORDER[i % AIRPLANE_COLOR_ORDER.length];
+
+    const planeCfg = AIRPLANE_CONFIGS[airplaneCol] || AIRPLANE_CONFIGS.red;
+
     players.push({
       id: i,
       name: playerName,
-      avatar: isAI ? (aiIndex === 1 ? '🤖' : '👾') : preset.avatarHuman,
-      color: preset.color,
-      glowColor: preset.glowColor,
-      secondaryColor: preset.secondaryColor,
+      avatar: isAI ? (aiIndex === 1 ? '🤖' : '👾') : '✈️',
+      airplaneColor: airplaneCol,
+      color: planeCfg.primaryColor,
+      glowColor: planeCfg.glowColor,
+      secondaryColor: planeCfg.secondaryColor,
       pos: 0,
       prevPos: 0,
       money: initialMoney,
