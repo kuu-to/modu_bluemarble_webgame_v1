@@ -93,6 +93,12 @@ export default function App() {
   // Active modal controls
   const [activeModal, setActiveModal] = useState<null | 'purchase' | 'toll' | 'golden_key' | 'space_travel' | 'game_over' | 'debt' | 'start_upgrade' | 'island'>(null);
   const [currentGoldenKey, setCurrentGoldenKey] = useState<GoldenKeyCard | null>(null);
+  const [goldenKeyContext, setGoldenKeyContext] = useState<{
+    card: GoldenKeyCard;
+    player: Player;
+    currentTurnSeq: number;
+    rolledDouble: boolean;
+  } | null>(null);
   const [currentTollData, setCurrentTollData] = useState<{ space: SpaceData; owner: Player; payer: Player } | null>(null);
   const [debtModalData, setDebtModalData] = useState<{
     payer: Player;
@@ -100,6 +106,7 @@ export default function App() {
     totalRequiredAmount?: number;
     recipient: Player | null;
     reasonText: string;
+    rolledDouble?: boolean;
     onSuccess: (updatedPayer: Player, updatedRecipient: Player | null) => void;
   } | null>(null);
   const [gameOverData, setGameOverData] = useState<GameOverResult | null>(null);
@@ -112,6 +119,7 @@ export default function App() {
   const activePlayerIndexRef = useRef<number>(activePlayerIndex);
   const isTurnBusyRef = useRef<boolean>(false);
   const doubleCountRef = useRef<number>(0);
+  const rolledDoubleRef = useRef<boolean>(false);
 
   // Synchronize refs
   useEffect(() => {
@@ -160,16 +168,33 @@ export default function App() {
       window.clearInterval(t);
     });
     timersRef.current = [];
+    if (broadcastTimeoutRef.current) {
+      window.clearTimeout(broadcastTimeoutRef.current);
+      broadcastTimeoutRef.current = null;
+    }
     soundManager.stopAll();
   };
 
+  // Broadcast timer ref to revert to idle after display time
+  const broadcastTimeoutRef = useRef<number | null>(null);
+
   // Trigger Board Broadcast Notification
   const triggerBroadcast = (msg: Omit<BoardBroadcastMessage, 'id' | 'timestamp'>) => {
+    if (broadcastTimeoutRef.current) {
+      window.clearTimeout(broadcastTimeoutRef.current);
+      broadcastTimeoutRef.current = null;
+    }
     setBoardBroadcast({
       ...msg,
       id: Math.random().toString(),
       timestamp: Date.now()
     });
+
+    // Auto-revert broadcast back to turn guidance after 6.5s so it never freezes
+    broadcastTimeoutRef.current = window.setTimeout(() => {
+      setBoardBroadcast(null);
+      broadcastTimeoutRef.current = null;
+    }, 6500);
   };
 
   // Update sound manager toggle
@@ -308,6 +333,7 @@ export default function App() {
     }
 
     if (rolledDouble) {
+      rolledDoubleRef.current = true;
       const currentSeq = ++turnSeqRef.current;
       soundManager.playTurnSwitch();
       setTurnBannerVisible(true);
@@ -335,6 +361,8 @@ export default function App() {
       return;
     }
 
+    // Normal turn switch: completely reset double state
+    rolledDoubleRef.current = false;
     setDoubleCount(0);
     doubleCountRef.current = 0;
     setIsDouble(false);
@@ -498,7 +526,7 @@ export default function App() {
   };
 
   // Handle Action on Space Landing
-  const handleSpaceAction = (player: Player, space: SpaceData, currentTurnSeq: number) => {
+  const handleSpaceAction = (player: Player, space: SpaceData, currentTurnSeq: number, rolledDouble: boolean = false) => {
     if (currentTurnSeq !== turnSeqRef.current) return;
     const cellState = cellsRef.current[space.id] || {
       owner: null,
@@ -523,9 +551,11 @@ export default function App() {
       });
       setPlayers(prev => {
         const next = prev.map(p => p.id === player.id ? { ...p, islandTurnsLeft: 3 } : p);
+        playersRef.current = next;
         return updateTotalAssets(next, cellsRef.current);
       });
-      registerTimer(() => endTurn(isDouble, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
+      rolledDoubleRef.current = false;
+      registerTimer(() => endTurn(false, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
       return;
     }
 
@@ -546,9 +576,11 @@ export default function App() {
       });
       setPlayers(prev => {
         const next = prev.map(p => p.id === player.id ? { ...p, spaceTravelQueued: true } : p);
+        playersRef.current = next;
         return updateTotalAssets(next, cellsRef.current);
       });
-      registerTimer(() => endTurn(isDouble, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
+      rolledDoubleRef.current = false;
+      registerTimer(() => endTurn(false, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
       return;
     }
 
@@ -573,6 +605,7 @@ export default function App() {
         setSocialFund(0);
         setPlayers(prev => {
           const next = prev.map(p => p.id === player.id ? { ...p, money: p.money + reward } : p);
+          playersRef.current = next;
           return updateTotalAssets(next, cellsRef.current);
         });
       } else {
@@ -589,22 +622,24 @@ export default function App() {
           badgeColor: 'slate'
         });
       }
-      registerTimer(() => endTurn(isDouble, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
+      registerTimer(() => endTurn(rolledDouble, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
       return;
     }
 
     // 4. Tax (국세청)
     if (space.type === 'tax') {
-      const taxAmount = Math.max(15, Math.floor(player.money * 0.1) || 20);
+      const freshPlayer = playersRef.current.find(p => p.id === player.id) || player;
+      const taxAmount = Math.max(15, Math.floor(freshPlayer.money * 0.1) || 20);
       executeUniversalPayment({
-        payer: player,
+        payer: freshPlayer,
         totalAmount: taxAmount,
         recipient: null,
         reasonTitle: '국세청 세무조사 세금',
-        reasonText: `국세청 세무조사 세금 ${taxAmount}만 원 중 ${Math.max(0, taxAmount - player.money)}만 원 부족`,
+        reasonText: `국세청 세무조사 세금 ${taxAmount}만 원 중 ${Math.max(0, taxAmount - freshPlayer.money)}만 원 부족`,
         category: 'tax',
         isSocialFundDonation: true,
-        currentTurnSeq
+        currentTurnSeq,
+        rolledDouble
       });
       return;
     }
@@ -614,6 +649,12 @@ export default function App() {
       soundManager.playGoldenKey();
       const keyCard = getRandomGoldenKey();
       setCurrentGoldenKey(keyCard);
+      setGoldenKeyContext({
+        card: keyCard,
+        player,
+        currentTurnSeq,
+        rolledDouble
+      });
       addLog(player.id, `🔑 황금열쇠 찬스 획득! [${keyCard.title}]`, 'golden_key');
       triggerBroadcast({
         category: 'golden_key',
@@ -629,7 +670,7 @@ export default function App() {
       setActiveModal('golden_key');
       if (player.isAI) {
         registerTimer(() => {
-          applyGoldenKey(currentTurnSeq);
+          applyGoldenKey(player, currentTurnSeq, rolledDouble);
         }, speedConfig.aiActionDelayMs + 800, currentTurnSeq);
       }
       return;
@@ -679,7 +720,7 @@ export default function App() {
                 hasHotel: cellState.buildings.hasHotel || decision.buyHotel,
                 isLandmark: cellState.buildings.isLandmark || decision.buyLandmark
               };
-              confirmPurchase(simulatedBuildings, decision.totalCost, player, currentTurnSeq);
+              confirmPurchase(simulatedBuildings, decision.totalCost, player, currentTurnSeq, rolledDouble);
             } else {
               addLog(player.id, `▶ ${player.name}가 ${space.name} 투자를 보류했습니다.`, 'buy');
               triggerBroadcast({
@@ -693,7 +734,7 @@ export default function App() {
                 badge: '투자 보류',
                 badgeColor: 'slate'
               });
-              registerTimer(() => endTurn(isDouble, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
+              registerTimer(() => endTurn(rolledDouble, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
             }
           }, speedConfig.aiActionDelayMs, currentTurnSeq);
         } else {
@@ -703,7 +744,7 @@ export default function App() {
         // Toll & Takeover
         const opponent = playersRef.current.find(p => p.id === cellState.owner);
         if (!opponent) {
-          registerTimer(() => endTurn(isDouble, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
+          registerTimer(() => endTurn(rolledDouble, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
           return;
         }
 
@@ -730,10 +771,10 @@ export default function App() {
 
             if (canTakeover && player.money >= (toll + takeoverCost)) {
               // AI Takeover!
-              executeTakeover(space, opponent, player, toll, takeoverCost, currentTurnSeq);
+              executeTakeover(space, opponent, player, toll, takeoverCost, currentTurnSeq, rolledDouble);
             } else {
               // Pay Toll
-              executePayToll(space, opponent, player, toll, currentTurnSeq);
+              executePayToll(space, opponent, player, toll, currentTurnSeq, rolledDouble);
             }
           }, speedConfig.aiActionDelayMs, currentTurnSeq);
         } else {
@@ -753,7 +794,7 @@ export default function App() {
           badge: '👑 랜드마크',
           badgeColor: 'amber'
         });
-        registerTimer(() => endTurn(isDouble, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
+        registerTimer(() => endTurn(rolledDouble, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
       }
     } else {
       // Start tile
@@ -783,10 +824,10 @@ export default function App() {
                   if (b.nextUpgradeType === 'landmark') return 1;
                   return b.tollDiff - a.tollDiff;
                 })[0];
-                handleConfirmStartUpgrade(best.space.id, best.nextBuildings, best.nextUpgradeCost, player, currentTurnSeq);
+                handleConfirmStartUpgrade(best.space.id, best.nextBuildings, best.nextUpgradeCost, player, currentTurnSeq, rolledDouble);
               } else {
                 addLog(player.id, `🏁 ${player.name}가 출발점에 안착했습니다. (자금 부족으로 증축 패스)`, 'event');
-                registerTimer(() => endTurn(isDouble, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
+                registerTimer(() => endTurn(rolledDouble, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
               }
             }, speedConfig.aiActionDelayMs, currentTurnSeq);
             return;
@@ -800,12 +841,12 @@ export default function App() {
         }
       }
 
-      registerTimer(() => endTurn(isDouble, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
+      registerTimer(() => endTurn(rolledDouble, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
     }
   };
 
   // Step-by-step Token Movement Animation Engine
-  const moveTokenSteps = (player: Player, totalSteps: number, currentTurnSeq: number) => {
+  const moveTokenSteps = (player: Player, totalSteps: number, currentTurnSeq: number, rolledDouble: boolean = false) => {
     let currentStep = 0;
     let currPos = player.pos;
 
@@ -820,7 +861,9 @@ export default function App() {
       soundManager.playStepHop();
 
       // Check salary pass
+      let passedSalary = false;
       if (currPos === 0) {
+        passedSalary = true;
         soundManager.playCashGain();
         showFloatingEffect(player.id, SALARY_AMOUNT, true);
         addLog(player.id, `🚀 출발점 통과! 월급 +${SALARY_AMOUNT}만 원 지급`, 'event');
@@ -835,38 +878,45 @@ export default function App() {
           badge: `월급 +${SALARY_AMOUNT}만`,
           badgeColor: 'emerald'
         });
-        setPlayers(prev => {
-          const next = prev.map(p => p.id === player.id ? { ...p, money: p.money + SALARY_AMOUNT } : p);
-          return updateTotalAssets(next, cellsRef.current);
-        });
       }
 
       setPlayers(prev => {
-        const next = prev.map(p => p.id === player.id ? { ...p, pos: currPos } : p);
-        return next;
+        const next = prev.map(p => {
+          if (p.id === player.id) {
+            return {
+              ...p,
+              pos: currPos,
+              money: passedSalary ? p.money + SALARY_AMOUNT : p.money
+            };
+          }
+          return p;
+        });
+        playersRef.current = next;
+        return updateTotalAssets(next, cellsRef.current);
       });
 
       if (currentStep >= totalSteps) {
         window.clearInterval(stepInterval);
         setIsRolling(false);
         const finalSpace = BOARD_SPACES[currPos];
+        const freshPlayer = playersRef.current.find(p => p.id === player.id) || { ...player, pos: currPos };
         
         // Immediate Arrival Notification
         triggerBroadcast({
           category: 'arrive',
-          playerId: player.id,
-          playerName: player.name,
-          playerColor: player.color,
-          isAI: player.isAI,
+          playerId: freshPlayer.id,
+          playerName: freshPlayer.name,
+          playerColor: freshPlayer.color,
+          isAI: freshPlayer.isAI,
           title: `📍 [${finalSpace.name}] 땅에 도착했습니다!`,
-          detail: `${player.name}님이 [${finalSpace.name}]에 안착했습니다.`,
+          detail: `${freshPlayer.name}님이 [${finalSpace.name}]에 안착했습니다.`,
           badge: '도착',
           badgeColor: 'sky'
         });
 
         // Arrival pause to view board position before popping up modal/actions
         registerTimer(() => {
-          handleSpaceAction(player, finalSpace, currentTurnSeq);
+          handleSpaceAction(freshPlayer, finalSpace, currentTurnSeq, rolledDouble);
         }, speedConfig.arrivalPauseMs, currentTurnSeq);
       }
     }, speedConfig.stepIntervalMs);
@@ -914,6 +964,7 @@ export default function App() {
 
         const total = d1 + d2;
         setIsDouble(rolledDouble);
+        rolledDoubleRef.current = rolledDouble;
 
         if (rolledDouble) {
           const nextDoubleCount = doubleCountRef.current + 1;
@@ -1007,8 +1058,12 @@ export default function App() {
                 badge: '탈출 성공',
                 badgeColor: 'emerald'
               });
-              setPlayers(prev => prev.map(p => p.id === activePlayer.id ? { ...p, islandTurnsLeft: 0 } : p));
-              moveTokenSteps(activePlayer, total, currentTurnSeq);
+              setPlayers(prev => {
+                const next = prev.map(p => p.id === activePlayer.id ? { ...p, islandTurnsLeft: 0 } : p);
+                playersRef.current = next;
+                return next;
+              });
+              moveTokenSteps(activePlayer, total, currentTurnSeq, rolledDouble);
             } else {
               soundManager.playTollPenalty();
               addLog(activePlayer.id, `🏝️ 탈출 실패 (남은 턴: ${activePlayer.islandTurnsLeft - 1})`, 'event');
@@ -1023,14 +1078,18 @@ export default function App() {
                 badge: `남은 ${activePlayer.islandTurnsLeft - 1}턴`,
                 badgeColor: 'indigo'
               });
-              setPlayers(prev => prev.map(p => p.id === activePlayer.id ? { ...p, islandTurnsLeft: p.islandTurnsLeft - 1 } : p));
+              setPlayers(prev => {
+                const next = prev.map(p => p.id === activePlayer.id ? { ...p, islandTurnsLeft: p.islandTurnsLeft - 1 } : p);
+                playersRef.current = next;
+                return next;
+              });
               setIsRolling(false);
               registerTimer(() => endTurn(false, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
             }
             return;
           }
 
-          moveTokenSteps(activePlayer, total, currentTurnSeq);
+          moveTokenSteps(activePlayer, total, currentTurnSeq, rolledDouble);
         }, 400, currentTurnSeq);
       }
     }, tickInterval);
@@ -1111,9 +1170,11 @@ export default function App() {
     buildings: { hasVilla: boolean; hasBuilding: boolean; hasHotel: boolean; isLandmark: boolean },
     cost: number,
     playerOverride?: Player,
-    currentTurnSeq?: number
+    currentTurnSeq?: number,
+    rolledDouble?: boolean
   ) => {
     const seq = currentTurnSeq || turnSeqRef.current;
+    const doubleRoll = rolledDouble ?? isDouble;
     const player = playerOverride || playersRef.current[activePlayerIndexRef.current];
     const space = BOARD_SPACES[player.pos];
 
@@ -1168,7 +1229,7 @@ export default function App() {
     );
 
     setActiveModal(null);
-    registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+    registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
   };
 
   // Confirm Start Tile Remote Upgrade (Only 1 property upgradeable on Start landing after turn 1)
@@ -1177,9 +1238,11 @@ export default function App() {
     newBuildings: { hasVilla: boolean; hasBuilding: boolean; hasHotel: boolean; isLandmark: boolean },
     cost: number,
     playerOverride?: Player,
-    currentTurnSeq?: number
+    currentTurnSeq?: number,
+    rolledDouble?: boolean
   ) => {
     const seq = currentTurnSeq || turnSeqRef.current;
+    const doubleRoll = rolledDouble ?? isDouble;
     const player = playerOverride || playersRef.current[activePlayerIndexRef.current];
     const space = BOARD_SPACES[spaceId];
     if (!space) return;
@@ -1235,7 +1298,7 @@ export default function App() {
     );
 
     setActiveModal(null);
-    registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+    registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
   };
 
   // Island Escape Actions (Inventory-stored card usage, bail fee, and double roll)
@@ -1314,6 +1377,7 @@ export default function App() {
     category: 'toll' | 'tax' | 'golden_key' | 'fund' | 'event';
     isSocialFundDonation?: boolean;
     currentTurnSeq?: number;
+    rolledDouble?: boolean;
     onCompleted?: (updatedPayer: Player, updatedRecipient: Player | null) => void;
   }
 
@@ -1327,10 +1391,12 @@ export default function App() {
       category,
       isSocialFundDonation = false,
       currentTurnSeq,
+      rolledDouble,
       onCompleted
     } = params;
 
     const seq = currentTurnSeq || turnSeqRef.current;
+    const doubleRoll = rolledDouble ?? isDouble;
 
     // 1. Normal Payment (Player has sufficient cash)
     if (payer.money >= totalAmount) {
@@ -1388,7 +1454,7 @@ export default function App() {
       if (onCompleted && updatedPayerRes) {
         onCompleted(updatedPayerRes, updatedRecipientRes);
       } else {
-        registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+        registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
       }
       return;
     }
@@ -1449,7 +1515,7 @@ export default function App() {
         if (onCompleted) {
           onCompleted(updatedPayer, updatedRecipient);
         } else {
-          registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+          registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
         }
         return;
       } else {
@@ -1521,7 +1587,7 @@ export default function App() {
           if (onCompleted) {
             onCompleted(updatedPayer, updatedRecipient);
           } else {
-            registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+            registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
           }
           return;
         } else {
@@ -1532,7 +1598,7 @@ export default function App() {
             return updateTotalAssets(next, cellsRef.current);
           });
           setActiveModal(null);
-          registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+          registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
           return;
         }
       }
@@ -1571,7 +1637,7 @@ export default function App() {
         if (onCompleted) {
           onCompleted(updatedPayer, updatedRecipient);
         } else {
-          registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+          registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
         }
       }
     });
@@ -1579,7 +1645,7 @@ export default function App() {
   };
 
   // Execute Toll Payment (With Loan & Property Sale Rescue Support)
-  const executePayToll = (space: SpaceData, owner: Player, payer: Player, toll: number, currentTurnSeq?: number) => {
+  const executePayToll = (space: SpaceData, owner: Player, payer: Player, toll: number, currentTurnSeq?: number, rolledDouble?: boolean) => {
     executeUniversalPayment({
       payer,
       totalAmount: toll,
@@ -1587,7 +1653,8 @@ export default function App() {
       reasonTitle: `${owner.name}의 [${space.name}] 통행료`,
       reasonText: `${owner.name}의 [${space.name}] 통행료 ${toll}만 원 중 ${Math.max(0, toll - payer.money)}만 원 부족`,
       category: 'toll',
-      currentTurnSeq
+      currentTurnSeq,
+      rolledDouble
     });
   };
 
@@ -1698,8 +1765,17 @@ export default function App() {
   }
 
   // Execute Takeover (도시 인수)
-  const executeTakeover = (space: SpaceData, owner: Player, buyer: Player, toll: number, takeoverCost: number, currentTurnSeq?: number) => {
+  const executeTakeover = (
+    space: SpaceData,
+    owner: Player,
+    buyer: Player,
+    toll: number,
+    takeoverCost: number,
+    currentTurnSeq?: number,
+    rolledDouble?: boolean
+  ) => {
     const seq = currentTurnSeq || turnSeqRef.current;
+    const doubleRoll = rolledDouble ?? isDouble;
     soundManager.playBuildingBuild(true);
     const totalCost = toll + takeoverCost;
 
@@ -1751,14 +1827,15 @@ export default function App() {
     );
 
     setActiveModal(null);
-    registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+    registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
   };
 
   // Apply Golden Key Effect
-  const applyGoldenKey = (currentTurnSeq?: number) => {
+  const applyGoldenKey = (targetPlayer?: Player, currentTurnSeq?: number, rolledDouble?: boolean) => {
     const seq = currentTurnSeq || turnSeqRef.current;
+    const doubleRoll = rolledDouble ?? isDouble;
     if (!currentGoldenKey) return;
-    const activePlayer = playersRef.current[activePlayerIndexRef.current];
+    const activePlayer = targetPlayer || playersRef.current[activePlayerIndexRef.current];
     if (!activePlayer) return;
     const card = currentGoldenKey;
 
@@ -1794,7 +1871,8 @@ export default function App() {
           reasonTitle: `황금열쇠 [${card.title}]`,
           reasonText: `황금열쇠 [${card.title}] 납부 비용 ${loss}만 원 중 ${Math.max(0, loss - activePlayer.money)}만 원 부족`,
           category: 'golden_key',
-          currentTurnSeq: seq
+          currentTurnSeq: seq,
+          rolledDouble: doubleRoll
         });
         return;
       }
@@ -1808,7 +1886,8 @@ export default function App() {
           reasonText: `황금열쇠 [${card.title}] 후원금 ${donation}만 원 중 ${Math.max(0, donation - activePlayer.money)}만 원 부족`,
           category: 'golden_key',
           isSocialFundDonation: true,
-          currentTurnSeq: seq
+          currentTurnSeq: seq,
+          rolledDouble: doubleRoll
         });
         return;
       }
@@ -1880,13 +1959,13 @@ export default function App() {
           badge: '무인도 3턴',
           badgeColor: 'indigo'
         });
-        registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+        registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
         return;
       }
     }
 
     setActiveModal(null);
-    registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+    registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
   };
 
   // AI Turn Automation Trigger (Rock-solid, dependency-isolated)

@@ -70,12 +70,18 @@ export const TileCell: React.FC<TileCellProps> = ({
   let customStyle: React.CSSProperties = {};
 
   if (owner) {
-    customStyle = {
-      borderColor: isLandmark ? (owner.glowColor || '#ffd700') : owner.color,
-      boxShadow: isLandmark
-        ? `0 0 8px ${owner.glowColor || '#fbbf24'}88, inset 0 0 6px ${owner.color}25`
-        : `inset 0 0 4px ${owner.color}20, 0 1px 2px rgba(0,0,0,0.12)`,
-    };
+    if (isLandmark) {
+      borderStyle = 'border-amber-400 ring-2 ring-amber-400/90 z-10';
+      customStyle = {
+        borderColor: '#f59e0b',
+        boxShadow: `0 0 12px rgba(245, 158, 11, 0.75), inset 0 0 8px ${owner.color}35`,
+      };
+    } else {
+      customStyle = {
+        borderColor: owner.color,
+        boxShadow: `inset 0 0 4px ${owner.color}20, 0 1px 2px rgba(0,0,0,0.12)`,
+      };
+    }
   }
 
   if (highlighted) {
@@ -95,7 +101,7 @@ export const TileCell: React.FC<TileCellProps> = ({
     ? owner.color
     : defaultPlotColor;
   const plotBorderColor = isLandmark
-    ? '#fcd34d'
+    ? '#f59e0b'
     : owner
     ? (owner.glowColor || '#ffffff')
     : '#166534';
@@ -113,6 +119,15 @@ export const TileCell: React.FC<TileCellProps> = ({
         isCorner ? 'aspect-square' : ''
       }`}
     >
+      {/* 👑 랜드마크 완공 시 선명한 황금 리본 & 엠블럼 (눈에 확 띄는 골드 아웃라인) */}
+      {isLandmark && (
+        <div className="absolute top-0 right-0 z-30 pointer-events-none">
+          <div className="bg-gradient-to-l from-amber-400 via-yellow-400 to-amber-500 text-slate-950 font-black text-[7px] sm:text-[8px] px-1.5 py-0.5 rounded-bl-md shadow-md border-b border-l border-amber-200 flex items-center gap-0.5">
+            <span className="text-[9px]">👑</span>
+            <span>LM</span>
+          </div>
+        </div>
+      )}
       {/* 🌟 1. 4개 코너 구역 (출발점, 무인도, 우주여행, 사회복지기금) - 정사각형 규격 🌟 */}
       {isCorner ? (
         <div className="w-full h-full flex flex-col items-center justify-between text-center p-1 sm:p-1.5 relative overflow-hidden bg-gradient-to-br from-[#fbfdf9] via-[#ffffff] to-[#eef5e6]">

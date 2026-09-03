@@ -198,7 +198,7 @@ export const BuildingModel: React.FC<BuildingModelProps> = ({
           className="relative flex flex-col items-center justify-center w-full h-full"
         >
           {/* 황금빛 랜드마크 받침대 & 외곽 테두리 (Gold Pedestal & Halo) */}
-          <div className="absolute inset-0 rounded-sm bg-amber-400/20 border-1.5 border-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.6)] pointer-events-none animate-pulse" />
+          <div className="absolute inset-0 rounded-sm bg-amber-400/25 border-2 border-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.85)] pointer-events-none" />
 
           {/* 소유주 엠블럼 & 황금 왕관 */}
           <div className="absolute -top-3 z-20 flex items-center justify-center">
@@ -222,7 +222,7 @@ export const BuildingModel: React.FC<BuildingModelProps> = ({
           </motion.div>
 
           {/* 도시별 실제 랜드마크 3D 모델 (더 크고 굵은 외곽선으로 선명화) */}
-          <div className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+          <div className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center filter drop-shadow-[0_0_2px_#fbbf24] drop-shadow-[0_2px_5px_rgba(0,0,0,0.95)]">
             <CityLandmarkIcon
               spaceId={spaceId}
               cityName={cityName}

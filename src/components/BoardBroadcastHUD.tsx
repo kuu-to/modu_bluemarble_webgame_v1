@@ -43,6 +43,24 @@ export const BoardBroadcastHUD: React.FC<BoardBroadcastHUDProps> = ({
           textColor: 'text-emerald-100',
           icon: <Building2 className="w-4 h-4 text-emerald-300" />
         };
+      case 'turn':
+        return {
+          bg: 'bg-gradient-to-r from-slate-950/95 via-sky-950/90 to-slate-950/95',
+          border: 'border-sky-400/80 shadow-[0_0_20px_rgba(56,189,248,0.35)]',
+          badgeBg: 'bg-sky-500 text-slate-950 font-black',
+          titleColor: 'text-sky-200',
+          textColor: 'text-sky-100',
+          icon: <Sparkles className="w-4 h-4 text-sky-300 animate-pulse" />
+        };
+      case 'pass':
+        return {
+          bg: 'bg-gradient-to-r from-slate-950/95 via-slate-900/90 to-slate-950/95',
+          border: 'border-slate-600/80 shadow-[0_0_15px_rgba(0,0,0,0.5)]',
+          badgeBg: 'bg-slate-600 text-slate-100 font-bold',
+          titleColor: 'text-slate-300',
+          textColor: 'text-slate-400',
+          icon: <ArrowRight className="w-4 h-4 text-slate-400" />
+        };
       case 'golden_key':
         return {
           bg: 'bg-gradient-to-r from-amber-950/95 via-yellow-900/90 to-amber-950/95',
