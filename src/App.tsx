@@ -528,6 +528,10 @@ export default function App() {
   // Handle Action on Space Landing
   const handleSpaceAction = (player: Player, space: SpaceData, currentTurnSeq: number, rolledDouble: boolean = false) => {
     if (currentTurnSeq !== turnSeqRef.current) return;
+    const validatedPlayer: Player = {
+      ...player,
+      pos: space.id
+    };
     const cellState = cellsRef.current[space.id] || {
       owner: null,
       buildings: { hasVilla: false, hasBuilding: false, hasHotel: false, isLandmark: false },
@@ -670,7 +674,7 @@ export default function App() {
       setActiveModal('golden_key');
       if (player.isAI) {
         registerTimer(() => {
-          applyGoldenKey(player, currentTurnSeq, rolledDouble);
+          applyGoldenKey(currentTurnSeq);
         }, speedConfig.aiActionDelayMs + 800, currentTurnSeq);
       }
       return;
@@ -720,7 +724,7 @@ export default function App() {
                 hasHotel: cellState.buildings.hasHotel || decision.buyHotel,
                 isLandmark: cellState.buildings.isLandmark || decision.buyLandmark
               };
-              confirmPurchase(simulatedBuildings, decision.totalCost, player, currentTurnSeq, rolledDouble);
+              confirmPurchase(simulatedBuildings, decision.totalCost, player, currentTurnSeq);
             } else {
               addLog(player.id, `▶ ${player.name}가 ${space.name} 투자를 보류했습니다.`, 'buy');
               triggerBroadcast({
@@ -748,33 +752,33 @@ export default function App() {
           return;
         }
 
-        setCurrentTollData({ space, owner: opponent, payer: player });
+        setCurrentTollData({ space, owner: opponent, payer: validatedPlayer });
 
         triggerBroadcast({
           category: 'toll_due',
-          playerId: player.id,
-          playerName: player.name,
-          playerColor: player.color,
-          isAI: player.isAI,
+          playerId: validatedPlayer.id,
+          playerName: validatedPlayer.name,
+          playerColor: validatedPlayer.color,
+          isAI: validatedPlayer.isAI,
           title: `⚠️ [${opponent.name}]의 [${space.name}] 도착! 통행료 발생!`,
           detail: `지불할 통행료: ${cellState.currentToll}만 원${cellState.buildings.isLandmark ? ' (랜드마크 방어/인수 불가)' : ' | 도시 인수(Takeover) 가능'}`,
           badge: `통행료 ${cellState.currentToll}만`,
           badgeColor: 'rose'
         });
 
-        if (player.isAI) {
+        if (validatedPlayer.isAI) {
           registerTimer(() => {
             const toll = cellState.currentToll;
             const spaceVal = calculateSpaceValue(space, cellState.buildings);
             const takeoverCost = spaceVal * 2;
-            const canTakeover = !cellState.buildings.isLandmark && decideAITakeover(player, space, takeoverCost);
+            const canTakeover = !cellState.buildings.isLandmark && decideAITakeover(validatedPlayer, space, takeoverCost);
 
-            if (canTakeover && player.money >= (toll + takeoverCost)) {
+            if (canTakeover && validatedPlayer.money >= (toll + takeoverCost)) {
               // AI Takeover!
-              executeTakeover(space, opponent, player, toll, takeoverCost, currentTurnSeq, rolledDouble);
+              executeTakeover(space, opponent, validatedPlayer, toll, takeoverCost, currentTurnSeq);
             } else {
               // Pay Toll
-              executePayToll(space, opponent, player, toll, currentTurnSeq, rolledDouble);
+              executePayToll(space, opponent, validatedPlayer, toll, currentTurnSeq);
             }
           }, speedConfig.aiActionDelayMs, currentTurnSeq);
         } else {
@@ -824,7 +828,7 @@ export default function App() {
                   if (b.nextUpgradeType === 'landmark') return 1;
                   return b.tollDiff - a.tollDiff;
                 })[0];
-                handleConfirmStartUpgrade(best.space.id, best.nextBuildings, best.nextUpgradeCost, player, currentTurnSeq, rolledDouble);
+                handleConfirmStartUpgrade(best.space.id, best.nextBuildings, best.nextUpgradeCost, player, currentTurnSeq);
               } else {
                 addLog(player.id, `🏁 ${player.name}가 출발점에 안착했습니다. (자금 부족으로 증축 패스)`, 'event');
                 registerTimer(() => endTurn(rolledDouble, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
@@ -899,7 +903,18 @@ export default function App() {
         window.clearInterval(stepInterval);
         setIsRolling(false);
         const finalSpace = BOARD_SPACES[currPos];
-        const freshPlayer = playersRef.current.find(p => p.id === player.id) || { ...player, pos: currPos };
+        const existingPlayer = playersRef.current.find(p => p.id === player.id) || player;
+        const freshPlayer: Player = {
+          ...existingPlayer,
+          pos: currPos
+        };
+
+        // Guarantee state and playersRef explicitly reflect final arrived space
+        setPlayers(prev => {
+          const next = prev.map(p => p.id === player.id ? { ...p, pos: currPos } : p);
+          playersRef.current = next;
+          return updateTotalAssets(next, cellsRef.current);
+        });
         
         // Immediate Arrival Notification
         triggerBroadcast({
@@ -1149,19 +1164,27 @@ export default function App() {
       });
     }
 
+    const salaryBonus = passedStart ? SALARY_AMOUNT : 0;
     setPlayers(prev => {
       const next = prev.map(p => {
         if (p.id === activePlayer.id) {
-          const salaryBonus = passedStart ? SALARY_AMOUNT : 0;
           return { ...p, pos: destPos, money: p.money + salaryBonus, spaceTravelQueued: false };
         }
         return p;
       });
+      playersRef.current = next;
       return updateTotalAssets(next, cellsRef.current);
     });
 
+    const warpedPlayer: Player = {
+      ...activePlayer,
+      pos: destPos,
+      money: activePlayer.money + salaryBonus,
+      spaceTravelQueued: false
+    };
+
     registerTimer(() => {
-      handleSpaceAction(activePlayer, BOARD_SPACES[destPos], seq);
+      handleSpaceAction(warpedPlayer, BOARD_SPACES[destPos], seq);
     }, speedConfig.arrivalPauseMs, seq);
   };
 
@@ -1373,6 +1396,7 @@ export default function App() {
     category: 'toll' | 'tax' | 'golden_key' | 'fund' | 'event';
     isSocialFundDonation?: boolean;
     currentTurnSeq?: number;
+    rolledDouble?: boolean;
     onCompleted?: (updatedPayer: Player, updatedRecipient: Player | null) => void;
   }
 
@@ -1386,10 +1410,12 @@ export default function App() {
       category,
       isSocialFundDonation = false,
       currentTurnSeq,
+      rolledDouble = rolledDoubleRef.current,
       onCompleted
     } = params;
 
     const seq = currentTurnSeq || turnSeqRef.current;
+    const isDouble = rolledDouble;
 
     // 1. Normal Payment (Player has sufficient cash)
     if (payer.money >= totalAmount) {
@@ -1428,7 +1454,11 @@ export default function App() {
       setPlayers(prev => {
         const next = prev.map(p => {
           if (p.id === payer.id) {
-            const u = { ...p, money: p.money - totalAmount };
+            const u = {
+              ...p,
+              pos: payer.pos !== undefined ? payer.pos : p.pos,
+              money: p.money - totalAmount
+            };
             updatedPayerRes = u;
             return u;
           }
@@ -1439,6 +1469,7 @@ export default function App() {
           }
           return p;
         });
+        playersRef.current = next;
         checkGameOver(next);
         return updateTotalAssets(next, cellsRef.current);
       });
@@ -1465,10 +1496,14 @@ export default function App() {
           setSocialFund(prev => prev + totalAmount);
         }
 
+        const currentP = playersRef.current.find(p => p.id === payer.id) || payer;
+        const targetPos = payer.pos !== undefined ? payer.pos : currentP.pos;
+
         const updatedPayer: Player = {
-          ...payer,
+          ...currentP,
+          pos: targetPos,
           money: 0,
-          debt: (payer.debt || 0) + loanAmt,
+          debt: (currentP.debt || 0) + loanAmt,
           hasUsedLoan: true
         };
 
@@ -1497,10 +1532,19 @@ export default function App() {
 
         setPlayers(prev => {
           const next = prev.map(p => {
-            if (p.id === payer.id) return updatedPayer;
+            if (p.id === payer.id) {
+              return {
+                ...p,
+                pos: targetPos,
+                money: 0,
+                debt: (p.debt || 0) + loanAmt,
+                hasUsedLoan: true
+              };
+            }
             if (recipient && p.id === recipient.id) return updatedRecipient!;
             return p;
           });
+          playersRef.current = next;
           return updateTotalAssets(next, cellsRef.current);
         });
 
@@ -1546,7 +1590,10 @@ export default function App() {
           });
 
           const remainingCash = (payer.money + recovered) - totalAmount;
-          const updatedPayer: Player = { ...payer, money: remainingCash };
+          const currentP = playersRef.current.find(p => p.id === payer.id) || payer;
+          const targetPos = payer.pos !== undefined ? payer.pos : currentP.pos;
+
+          const updatedPayer: Player = { ...currentP, pos: targetPos, money: remainingCash };
           const updatedRecipient: Player | null = recipient ? { ...recipient, money: recipient.money + totalAmount } : null;
 
           showFloatingEffect(payer.id, totalAmount, false);
@@ -1569,10 +1616,17 @@ export default function App() {
 
           setPlayers(prev => {
             const next = prev.map(p => {
-              if (p.id === payer.id) return updatedPayer;
+              if (p.id === payer.id) {
+                return {
+                  ...p,
+                  pos: targetPos,
+                  money: remainingCash
+                };
+              }
               if (recipient && p.id === recipient.id) return updatedRecipient!;
               return p;
             });
+            playersRef.current = next;
             return updateTotalAssets(next, cellsRef.current);
           });
 
@@ -1618,10 +1672,24 @@ export default function App() {
 
         setPlayers(prev => {
           const next = prev.map(p => {
-            if (p.id === updatedPayer.id) return updatedPayer;
-            if (updatedRecipient && p.id === updatedRecipient.id) return updatedRecipient;
+            if (p.id === updatedPayer.id) {
+              return {
+                ...p,
+                pos: updatedPayer.pos !== undefined ? updatedPayer.pos : p.pos,
+                money: updatedPayer.money,
+                debt: updatedPayer.debt !== undefined ? updatedPayer.debt : p.debt,
+                hasUsedLoan: updatedPayer.hasUsedLoan !== undefined ? updatedPayer.hasUsedLoan : p.hasUsedLoan
+              };
+            }
+            if (updatedRecipient && p.id === updatedRecipient.id) {
+              return {
+                ...p,
+                money: updatedRecipient.money
+              };
+            }
             return p;
           });
+          playersRef.current = next;
           return updateTotalAssets(next, cellsRef.current);
         });
 
@@ -1639,12 +1707,16 @@ export default function App() {
 
   // Execute Toll Payment (With Loan & Property Sale Rescue Support)
   const executePayToll = (space: SpaceData, owner: Player, payer: Player, toll: number, currentTurnSeq?: number) => {
+    const validatedPayer: Player = {
+      ...payer,
+      pos: space.id
+    };
     executeUniversalPayment({
-      payer,
+      payer: validatedPayer,
       totalAmount: toll,
       recipient: owner,
       reasonTitle: `${owner.name}의 [${space.name}] 통행료`,
-      reasonText: `${owner.name}의 [${space.name}] 통행료 ${toll}만 원 중 ${Math.max(0, toll - payer.money)}만 원 부족`,
+      reasonText: `${owner.name}의 [${space.name}] 통행료 ${toll}만 원 중 ${Math.max(0, toll - validatedPayer.money)}만 원 부족`,
       category: 'toll',
       currentTurnSeq
     });
@@ -1657,10 +1729,14 @@ export default function App() {
     const fullAmount = totalRequiredAmount || (payer.money + debtAmount);
 
     soundManager.playCashGain();
+    const currentP = playersRef.current.find(p => p.id === payer.id) || payer;
+    const targetPos = payer.pos !== undefined ? payer.pos : currentP.pos;
+
     const updatedPayer: Player = {
-      ...payer,
+      ...currentP,
+      pos: targetPos,
       money: 0, // Used all existing cash + loan to pay full bill
-      debt: (payer.debt || 0) + loanAmount,
+      debt: (currentP.debt || 0) + loanAmount,
       hasUsedLoan: true
     };
 
@@ -1707,8 +1783,12 @@ export default function App() {
     const totalMoneyAvailable = payer.money + totalRecoveredMoney;
     const remainingMoney = totalMoneyAvailable - fullAmount;
 
+    const currentP = playersRef.current.find(p => p.id === payer.id) || payer;
+    const targetPos = payer.pos !== undefined ? payer.pos : currentP.pos;
+
     const updatedPayer: Player = {
-      ...payer,
+      ...currentP,
+      pos: targetPos,
       money: remainingMoney
     };
 
@@ -2265,10 +2345,10 @@ export default function App() {
         <TollModal
           space={currentTollData.space}
           cellState={cells[currentTollData.space.id] || { owner: null, buildings: { hasVilla: false, hasBuilding: false, hasHotel: false, isLandmark: false }, currentToll: 0 }}
-          payer={currentTollData.payer}
+          payer={{ ...currentTollData.payer, pos: currentTollData.space.id }}
           owner={currentTollData.owner}
-          onPayToll={() => executePayToll(currentTollData.space, currentTollData.owner, currentTollData.payer, (cells[currentTollData.space.id] || { currentToll: 0 }).currentToll)}
-          onTakeover={(takeoverCost) => executeTakeover(currentTollData.space, currentTollData.owner, currentTollData.payer, (cells[currentTollData.space.id] || { currentToll: 0 }).currentToll, takeoverCost)}
+          onPayToll={() => executePayToll(currentTollData.space, currentTollData.owner, { ...currentTollData.payer, pos: currentTollData.space.id }, (cells[currentTollData.space.id] || { currentToll: 0 }).currentToll)}
+          onTakeover={(takeoverCost) => executeTakeover(currentTollData.space, currentTollData.owner, { ...currentTollData.payer, pos: currentTollData.space.id }, (cells[currentTollData.space.id] || { currentToll: 0 }).currentToll, takeoverCost)}
         />
       )}
 
