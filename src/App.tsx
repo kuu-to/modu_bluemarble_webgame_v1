@@ -1170,11 +1170,9 @@ export default function App() {
     buildings: { hasVilla: boolean; hasBuilding: boolean; hasHotel: boolean; isLandmark: boolean },
     cost: number,
     playerOverride?: Player,
-    currentTurnSeq?: number,
-    rolledDouble?: boolean
+    currentTurnSeq?: number
   ) => {
     const seq = currentTurnSeq || turnSeqRef.current;
-    const doubleRoll = rolledDouble ?? isDouble;
     const player = playerOverride || playersRef.current[activePlayerIndexRef.current];
     const space = BOARD_SPACES[player.pos];
 
@@ -1229,7 +1227,7 @@ export default function App() {
     );
 
     setActiveModal(null);
-    registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
+    registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
   };
 
   // Confirm Start Tile Remote Upgrade (Only 1 property upgradeable on Start landing after turn 1)
@@ -1238,11 +1236,9 @@ export default function App() {
     newBuildings: { hasVilla: boolean; hasBuilding: boolean; hasHotel: boolean; isLandmark: boolean },
     cost: number,
     playerOverride?: Player,
-    currentTurnSeq?: number,
-    rolledDouble?: boolean
+    currentTurnSeq?: number
   ) => {
     const seq = currentTurnSeq || turnSeqRef.current;
-    const doubleRoll = rolledDouble ?? isDouble;
     const player = playerOverride || playersRef.current[activePlayerIndexRef.current];
     const space = BOARD_SPACES[spaceId];
     if (!space) return;
@@ -1298,7 +1294,7 @@ export default function App() {
     );
 
     setActiveModal(null);
-    registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
+    registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
   };
 
   // Island Escape Actions (Inventory-stored card usage, bail fee, and double roll)
@@ -1377,7 +1373,6 @@ export default function App() {
     category: 'toll' | 'tax' | 'golden_key' | 'fund' | 'event';
     isSocialFundDonation?: boolean;
     currentTurnSeq?: number;
-    rolledDouble?: boolean;
     onCompleted?: (updatedPayer: Player, updatedRecipient: Player | null) => void;
   }
 
@@ -1391,12 +1386,10 @@ export default function App() {
       category,
       isSocialFundDonation = false,
       currentTurnSeq,
-      rolledDouble,
       onCompleted
     } = params;
 
     const seq = currentTurnSeq || turnSeqRef.current;
-    const doubleRoll = rolledDouble ?? isDouble;
 
     // 1. Normal Payment (Player has sufficient cash)
     if (payer.money >= totalAmount) {
@@ -1454,7 +1447,7 @@ export default function App() {
       if (onCompleted && updatedPayerRes) {
         onCompleted(updatedPayerRes, updatedRecipientRes);
       } else {
-        registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
+        registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
       }
       return;
     }
@@ -1515,7 +1508,7 @@ export default function App() {
         if (onCompleted) {
           onCompleted(updatedPayer, updatedRecipient);
         } else {
-          registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
+          registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
         }
         return;
       } else {
@@ -1587,7 +1580,7 @@ export default function App() {
           if (onCompleted) {
             onCompleted(updatedPayer, updatedRecipient);
           } else {
-            registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
+            registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
           }
           return;
         } else {
@@ -1598,7 +1591,7 @@ export default function App() {
             return updateTotalAssets(next, cellsRef.current);
           });
           setActiveModal(null);
-          registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
+          registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
           return;
         }
       }
@@ -1637,7 +1630,7 @@ export default function App() {
         if (onCompleted) {
           onCompleted(updatedPayer, updatedRecipient);
         } else {
-          registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
+          registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
         }
       }
     });
@@ -1645,7 +1638,7 @@ export default function App() {
   };
 
   // Execute Toll Payment (With Loan & Property Sale Rescue Support)
-  const executePayToll = (space: SpaceData, owner: Player, payer: Player, toll: number, currentTurnSeq?: number, rolledDouble?: boolean) => {
+  const executePayToll = (space: SpaceData, owner: Player, payer: Player, toll: number, currentTurnSeq?: number) => {
     executeUniversalPayment({
       payer,
       totalAmount: toll,
@@ -1653,8 +1646,7 @@ export default function App() {
       reasonTitle: `${owner.name}의 [${space.name}] 통행료`,
       reasonText: `${owner.name}의 [${space.name}] 통행료 ${toll}만 원 중 ${Math.max(0, toll - payer.money)}만 원 부족`,
       category: 'toll',
-      currentTurnSeq,
-      rolledDouble
+      currentTurnSeq
     });
   };
 
@@ -1765,17 +1757,8 @@ export default function App() {
   }
 
   // Execute Takeover (도시 인수)
-  const executeTakeover = (
-    space: SpaceData,
-    owner: Player,
-    buyer: Player,
-    toll: number,
-    takeoverCost: number,
-    currentTurnSeq?: number,
-    rolledDouble?: boolean
-  ) => {
+  const executeTakeover = (space: SpaceData, owner: Player, buyer: Player, toll: number, takeoverCost: number, currentTurnSeq?: number) => {
     const seq = currentTurnSeq || turnSeqRef.current;
-    const doubleRoll = rolledDouble ?? isDouble;
     soundManager.playBuildingBuild(true);
     const totalCost = toll + takeoverCost;
 
@@ -1827,15 +1810,14 @@ export default function App() {
     );
 
     setActiveModal(null);
-    registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
+    registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
   };
 
   // Apply Golden Key Effect
-  const applyGoldenKey = (targetPlayer?: Player, currentTurnSeq?: number, rolledDouble?: boolean) => {
+  const applyGoldenKey = (currentTurnSeq?: number) => {
     const seq = currentTurnSeq || turnSeqRef.current;
-    const doubleRoll = rolledDouble ?? isDouble;
     if (!currentGoldenKey) return;
-    const activePlayer = targetPlayer || playersRef.current[activePlayerIndexRef.current];
+    const activePlayer = playersRef.current[activePlayerIndexRef.current];
     if (!activePlayer) return;
     const card = currentGoldenKey;
 
@@ -1871,8 +1853,7 @@ export default function App() {
           reasonTitle: `황금열쇠 [${card.title}]`,
           reasonText: `황금열쇠 [${card.title}] 납부 비용 ${loss}만 원 중 ${Math.max(0, loss - activePlayer.money)}만 원 부족`,
           category: 'golden_key',
-          currentTurnSeq: seq,
-          rolledDouble: doubleRoll
+          currentTurnSeq: seq
         });
         return;
       }
@@ -1886,8 +1867,7 @@ export default function App() {
           reasonText: `황금열쇠 [${card.title}] 후원금 ${donation}만 원 중 ${Math.max(0, donation - activePlayer.money)}만 원 부족`,
           category: 'golden_key',
           isSocialFundDonation: true,
-          currentTurnSeq: seq,
-          rolledDouble: doubleRoll
+          currentTurnSeq: seq
         });
         return;
       }
@@ -1959,13 +1939,13 @@ export default function App() {
           badge: '무인도 3턴',
           badgeColor: 'indigo'
         });
-        registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
+        registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
         return;
       }
     }
 
     setActiveModal(null);
-    registerTimer(() => endTurn(doubleRoll, seq), speedConfig.modalActionDelayMs, seq);
+    registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
   };
 
   // AI Turn Automation Trigger (Rock-solid, dependency-isolated)
