@@ -305,20 +305,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
               {/* Debt & Loan status info */}
               {p.debt > 0 && (
-                <div className="mt-1.5 p-1.5 rounded-xl bg-red-950/40 border border-red-500/40 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1 text-red-300 text-[10.5px]">
-                    <CreditCard className="w-3 h-3 text-red-400" />
-                    <span>누적 대출 빚:</span>
-                    <strong className="text-red-200 font-num">{p.debt}만 원</strong>
+                <div className="mt-1.5 p-1.5 rounded-xl bg-red-950/50 border border-red-500/40 flex items-center justify-between text-xs">
+                  <div>
+                    <div className="flex items-center gap-1 text-red-300 text-[10.5px]">
+                      <CreditCard className="w-3 h-3 text-red-400 shrink-0" />
+                      <span>대출 빚:</span>
+                      <strong className="text-red-200 font-num">{p.debt}만 원</strong>
+                    </div>
+                    <div className="text-[9.5px] text-amber-300/80 font-medium">
+                      상환 시 재대출 가능
+                    </div>
                   </div>
 
-                  {!p.isAI && p.money >= p.debt && onRepayDebt && (
-                    <button
-                      onClick={() => onRepayDebt(p.id)}
-                      className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-[10px] font-bold text-white cursor-pointer shadow"
-                    >
-                      빚 갚기
-                    </button>
+                  {!p.isAI && onRepayDebt && (
+                    p.money >= p.debt ? (
+                      <button
+                        onClick={() => onRepayDebt(p.id)}
+                        className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-[10px] font-bold text-white cursor-pointer shadow transition-all active:scale-95"
+                        title="빚을 전액 상환하면 언제든 다시 대출을 받을 수 있습니다."
+                      >
+                        빚 갚기
+                      </button>
+                    ) : (
+                      <span className="text-[9.5px] text-slate-400 font-num">
+                        부족 ({p.money}/{p.debt}만)
+                      </span>
+                    )
                   )}
                 </div>
               )}

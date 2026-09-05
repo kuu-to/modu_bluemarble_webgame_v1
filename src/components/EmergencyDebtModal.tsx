@@ -42,12 +42,8 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
   onBankrupt
 }) => {
   const fullRequiredAmount = totalRequiredAmount || (payer.money + debtAmount);
-  const [selectedAction, setSelectedAction] = useState<'loan' | 'sell' | null>(
-    !payer.hasUsedLoan ? 'loan' : 'sell'
-  );
-  
-  // Selected lands to sell: spaceId[]
-  const [selectedSellSpaces, setSelectedSellSpaces] = useState<number[]>([]);
+  // Loan is permitted if player has no existing debt (debt === 0). If debt remains, loan is blocked.
+  const canTakeLoan = (payer.debt || 0) === 0;
 
   // Find all properties owned by payer
   const ownedProperties = (Object.entries(cells) as [string, CellState][])
@@ -66,6 +62,13 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
       };
     });
 
+  const [selectedAction, setSelectedAction] = useState<'loan' | 'sell' | null>(
+    canTakeLoan ? 'loan' : (ownedProperties.length > 0 ? 'sell' : null)
+  );
+  
+  // Selected lands to sell: spaceId[]
+  const [selectedSellSpaces, setSelectedSellSpaces] = useState<number[]>([]);
+
   // Calculate total money recovered from selected properties
   const totalRecoveredMoney = selectedSellSpaces.reduce((sum, id) => {
     const prop = ownedProperties.find(p => p.spaceId === id);
@@ -83,7 +86,7 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
   };
 
   const handleConfirmAction = () => {
-    if (selectedAction === 'loan' && !payer.hasUsedLoan) {
+    if (selectedAction === 'loan' && canTakeLoan) {
       // Loan amount is exactly the deficit needed: debtAmount
       onTakeLoan(debtAmount);
     } else if (selectedAction === 'sell') {
@@ -148,16 +151,16 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
             </div>
           </div>
 
-          {/* Action Tabs: [1. 대출하기 (최초 1회)] vs [2. 땅 & 건물 판매] */}
+          {/* Action Tabs: [1. 대출하기 (부채 없을 시 재대출 가능)] vs [2. 땅 & 건물 판매] */}
           <div className="grid grid-cols-2 gap-2.5">
             {/* Option 1: Loan */}
             <button
               type="button"
-              disabled={payer.hasUsedLoan}
+              disabled={!canTakeLoan}
               onClick={() => setSelectedAction('loan')}
               className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                payer.hasUsedLoan
-                  ? 'bg-slate-900/40 border-slate-800/80 opacity-50 cursor-not-allowed text-slate-500'
+                !canTakeLoan
+                  ? 'bg-slate-900/40 border-slate-800/80 opacity-60 cursor-not-allowed text-slate-500'
                   : selectedAction === 'loan'
                   ? 'bg-gradient-to-b from-indigo-950/90 to-slate-900 border-indigo-400 text-white shadow-[0_0_20px_rgba(99,102,241,0.35)] ring-1 ring-indigo-400'
                   : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:bg-slate-800'
@@ -169,18 +172,22 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
                     <CreditCard className="w-4 h-4" />
                   </div>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                    payer.hasUsedLoan ? 'bg-slate-800 text-slate-500' : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                    !canTakeLoan ? 'bg-rose-950/80 text-rose-300 border border-rose-500/50' : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
                   }`}>
-                    {payer.hasUsedLoan ? '사용 완료' : '최초 1회 가능'}
+                    {!canTakeLoan ? `빚 ${payer.debt}만 보유 (대출 불가)` : '대출 가능 (빚 0원)'}
                   </span>
                 </div>
                 <div className="font-bold text-sm text-slate-100">긴급 구제 대출</div>
                 <div className="text-[11px] text-slate-400 mt-1 leading-snug">
-                  부족한 {debtAmount}만 원을 빚으로 대출받아 즉시 완납합니다.
+                  {canTakeLoan ? (
+                    <span>부족한 <strong className="text-yellow-300 font-num">{debtAmount}만 원</strong>을 빚으로 대출받아 즉시 완납합니다.</span>
+                  ) : (
+                    <span className="text-rose-300/90">갚지 않은 빚({payer.debt}만 원)이 있어 추가 대출 불가 (상환 시 재이용 가능)</span>
+                  )}
                 </div>
               </div>
 
-              {!payer.hasUsedLoan && (
+              {canTakeLoan && (
                 <div className="mt-2 text-[11.5px] font-bold text-indigo-300 font-num">
                   + {debtAmount}만 원 대출 실행
                 </div>
@@ -290,10 +297,13 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
                 <span>긴급 구제 대출 안내</span>
               </div>
               <p className="text-[11.5px] leading-relaxed text-indigo-200/90">
-                • 대출은 <strong>최초 1회</strong>만 승인되며, 부족한 <strong>{debtAmount}만 원</strong>의 빚이 발생하여 {recipient ? `${recipient.name}님에게` : '세금/비용으로'} 즉시 완납 처리됩니다.
+                • 빚이 없는 상태라면 <strong>횟수 제한 없이</strong> 언제든 부족한 금액을 대출받을 수 있습니다. (현재 갚지 않은 빚이 남아있는 경우 완납 전까지 추가 대출 불가)
               </p>
               <p className="text-[11.5px] leading-relaxed text-indigo-200/90">
-                • 빚은 게임 진행 중 우측 상단의 <strong>[빚 갚기]</strong> 버튼으로 언제든 상환할 수 있으며, 최종 순위(총자산 - 빚) 계산에 반영됩니다.
+                • 대출 실행 시 부족한 <strong>{debtAmount}만 원</strong>의 빚이 발생하며 {recipient ? `${recipient.name}님에게` : '세금/비용으로'} 즉시 완납 처리됩니다.
+              </p>
+              <p className="text-[11.5px] leading-relaxed text-indigo-200/90">
+                • 빚은 게임 진행 중 우측 상단의 <strong>[빚 갚기]</strong> 버튼으로 언제든 전액 상환할 수 있으며, 상환을 완료하면 추후 다시 대출을 이용할 수 있습니다.
               </p>
             </div>
           )}
@@ -316,11 +326,11 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
             onClick={handleConfirmAction}
             disabled={
               selectedAction === null ||
-              (selectedAction === 'loan' && payer.hasUsedLoan) ||
+              (selectedAction === 'loan' && !canTakeLoan) ||
               (selectedAction === 'sell' && !canAffordWithSell)
             }
             className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm sm:text-base flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              (selectedAction === 'loan' && !payer.hasUsedLoan) || (selectedAction === 'sell' && canAffordWithSell)
+              (selectedAction === 'loan' && canTakeLoan) || (selectedAction === 'sell' && canAffordWithSell)
                 ? 'bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 shadow-lg shadow-emerald-600/30 border border-emerald-300'
                 : 'bg-slate-900 text-slate-500 border border-slate-800 cursor-not-allowed'
             }`}

@@ -53,7 +53,7 @@ export interface Player {
   isBankrupt: boolean;
   ownedCityCount: number;
   debt: number; // 빚 누적액 (만 원)
-  hasUsedLoan: boolean; // 최초 1회 대출 사용 여부
+  hasUsedLoan: boolean; // 현재 대출 빚 보유 여부 (전액 상환 시 다시 false로 초기화되어 재대출 가능)
 }
 
 export interface GoldenKeyCard {

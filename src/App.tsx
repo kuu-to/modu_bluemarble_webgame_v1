@@ -508,11 +508,12 @@ export default function App() {
     showFloatingEffect(p.id, repayAmount, false);
 
     setPlayers(prev => {
-      const next = prev.map(x => x.id === playerId ? { ...x, money: x.money - repayAmount, debt: 0 } : x);
+      const next = prev.map(x => x.id === playerId ? { ...x, money: x.money - repayAmount, debt: 0, hasUsedLoan: false } : x);
+      playersRef.current = next;
       return updateTotalAssets(next, cellsRef.current);
     });
 
-    addLog(p.id, `💳 ${p.name}가 대출 빚 ${repayAmount}만 원을 전액 상환했습니다!`, 'event');
+    addLog(p.id, `💳 ${p.name}가 대출 빚 ${repayAmount}만 원을 전액 상환했습니다! (재대출 자격 회복)`, 'event');
     triggerBroadcast({
       category: 'purchase',
       playerId: p.id,
@@ -520,8 +521,8 @@ export default function App() {
       playerColor: p.color,
       isAI: p.isAI,
       title: `💳 [대출 빚 상환 완료]`,
-      detail: `${p.name}님이 누적된 대출 빚 ${repayAmount}만 원을 전액 변제했습니다.`,
-      badge: '부채 0원',
+      detail: `${p.name}님이 누적된 대출 빚 ${repayAmount}만 원을 전액 변제했습니다. 이제 필요 시 다시 대출받을 수 있습니다.`,
+      badge: '부채 0원 (대출 가능)',
       badgeColor: 'emerald'
     });
   };
@@ -1508,8 +1509,8 @@ export default function App() {
 
     // AI Emergency Handling
     if (payer.isAI) {
-      if (!payer.hasUsedLoan) {
-        // AI Option 1: Emergency Loan
+      if ((payer.debt || 0) === 0) {
+        // AI Option 1: Emergency Loan (Available when debt is 0)
         const loanAmt = deficit;
         soundManager.playCashGain();
         if (isSocialFundDonation) {
@@ -2322,6 +2323,11 @@ export default function App() {
     const currentSeq = turnSeqRef.current;
     const aiTimer = registerTimer(() => {
       if (turnSeqRef.current !== currentSeq || isTurnBusyRef.current) return;
+
+      // If AI has debt and has sufficient funds, repay debt to restore loan eligibility!
+      if (activePlayer.debt > 0 && activePlayer.money >= activePlayer.debt + 40) {
+        handleRepayDebt(activePlayer.id);
+      }
 
       // If AI has space travel queued, warp directly without rolling dice!
       if (activePlayer.spaceTravelQueued) {
