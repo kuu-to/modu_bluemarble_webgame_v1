@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { SpaceData, CellState, Player } from '../types';
+import { SpaceData, CellState, Player, ForceSellTargetBuilding, PropertySalePlan } from '../types';
 import { calculateSpaceValue } from '../data/boardData';
 import { 
   AlertTriangle, 
@@ -8,13 +8,20 @@ import {
   Store, 
   Skull, 
   Check, 
-  DollarSign, 
-  ShieldAlert, 
-  Coins,
-  ArrowRight,
-  Sparkles
+  Landmark,
+  Building2,
+  Home,
+  MapPin
 } from 'lucide-react';
 import { CountryFlag } from './CountryFlag';
+
+export const getBuildingRefundAmount = (space: SpaceData, type: ForceSellTargetBuilding): number => {
+  if (type === 'landmark') return space.landmarkPrice || Math.round((space.price || 0) * 1.5);
+  if (type === 'hotel') return space.hotelPrice || Math.round((space.price || 0) * 1.5);
+  if (type === 'building') return space.buildingPrice || (space.price || 0);
+  if (type === 'villa') return space.villaPrice || Math.round((space.price || 0) * 0.5);
+  return 0;
+};
 
 interface EmergencyDebtModalProps {
   payer: Player;
@@ -25,7 +32,7 @@ interface EmergencyDebtModalProps {
   spaces: SpaceData[];
   cells: Record<number, CellState>;
   onTakeLoan: (loanAmount: number) => void;
-  onSellProperties: (soldSpaceIds: number[], totalRecoveredMoney: number) => void;
+  onSellProperties: (salePlans: PropertySalePlan[], totalRecoveredMoney: number) => void;
   onBankrupt: () => void;
 }
 
@@ -45,20 +52,65 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
   // Loan is permitted if player has no existing debt (debt === 0). If debt remains, loan is blocked.
   const canTakeLoan = (payer.debt || 0) === 0;
 
-  // Find all properties owned by payer
+  // Find all properties owned by payer and their sellable assets
   const ownedProperties = (Object.entries(cells) as [string, CellState][])
     .filter(([_, cell]) => cell.owner === payer.id)
     .map(([idStr, cell]) => {
       const spaceId = Number(idStr);
       const space = spaces[spaceId];
-      const spaceVal = space ? calculateSpaceValue(space, cell.buildings) : 0;
-      // Sale recovery price (100% of base land + building value)
-      const sellPrice = spaceVal;
+      const landPrice = space ? (space.price || 0) : 0;
+
+      const availableBuildings: {
+        type: ForceSellTargetBuilding;
+        name: string;
+        icon: string;
+        refund: number;
+      }[] = [];
+
+      if (space) {
+        if (cell.buildings.isLandmark) {
+          availableBuildings.push({
+            type: 'landmark',
+            name: '랜드마크',
+            icon: '👑',
+            refund: getBuildingRefundAmount(space, 'landmark')
+          });
+        }
+        if (cell.buildings.hasHotel) {
+          availableBuildings.push({
+            type: 'hotel',
+            name: '호텔',
+            icon: '🏨',
+            refund: getBuildingRefundAmount(space, 'hotel')
+          });
+        }
+        if (cell.buildings.hasBuilding) {
+          availableBuildings.push({
+            type: 'building',
+            name: '빌딩',
+            icon: '🏢',
+            refund: getBuildingRefundAmount(space, 'building')
+          });
+        }
+        if (cell.buildings.hasVilla) {
+          availableBuildings.push({
+            type: 'villa',
+            name: '별장',
+            icon: '🏡',
+            refund: getBuildingRefundAmount(space, 'villa')
+          });
+        }
+      }
+
+      const totalCityRefund = space ? calculateSpaceValue(space, cell.buildings) : 0;
+
       return {
         spaceId,
         space,
         cell,
-        sellPrice
+        landPrice,
+        availableBuildings,
+        totalCityRefund
       };
     });
 
@@ -66,43 +118,120 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
     canTakeLoan ? 'loan' : (ownedProperties.length > 0 ? 'sell' : null)
   );
   
-  // Selected lands to sell: spaceId[]
-  const [selectedSellSpaces, setSelectedSellSpaces] = useState<number[]>([]);
+  // Set of spaceIds where the land itself (and whole property) is marked for sale
+  const [selectedLandSpaces, setSelectedLandSpaces] = useState<number[]>([]);
 
-  // Calculate total money recovered from selected properties
-  const totalRecoveredMoney = selectedSellSpaces.reduce((sum, id) => {
-    const prop = ownedProperties.find(p => p.spaceId === id);
-    return sum + (prop ? prop.sellPrice : 0);
+  // Set of keys in format `${spaceId}:${buildingType}` for buildings specifically marked for sale
+  const [selectedBuildings, setSelectedBuildings] = useState<string[]>([]);
+
+  // Toggle building sale
+  const toggleBuilding = (spaceId: number, bType: ForceSellTargetBuilding) => {
+    const key = `${spaceId}:${bType}`;
+    const isCurrentlySelected = selectedBuildings.includes(key);
+
+    if (isCurrentlySelected) {
+      setSelectedBuildings(prev => prev.filter(k => k !== key));
+      // If land was marked for sale, unmark land because keeping a building requires keeping the land
+      setSelectedLandSpaces(prev => prev.filter(id => id !== spaceId));
+    } else {
+      setSelectedBuildings(prev => [...prev, key]);
+    }
+  };
+
+  // Toggle land sale (selling land liquidates the land and all buildings on it)
+  const toggleLand = (spaceId: number) => {
+    const prop = ownedProperties.find(p => p.spaceId === spaceId);
+    if (!prop) return;
+
+    const isLandSelected = selectedLandSpaces.includes(spaceId);
+
+    if (isLandSelected) {
+      setSelectedLandSpaces(prev => prev.filter(id => id !== spaceId));
+    } else {
+      setSelectedLandSpaces(prev => [...prev, spaceId]);
+      // Also mark all available buildings on this space
+      setSelectedBuildings(prev => {
+        const next = [...prev];
+        prop.availableBuildings.forEach(b => {
+          const k = `${spaceId}:${b.type}`;
+          if (!next.includes(k)) next.push(k);
+        });
+        return next;
+      });
+    }
+  };
+
+  // Calculate total money recovered from selected land & buildings
+  const totalRecoveredMoney = ownedProperties.reduce((sum, prop) => {
+    if (selectedLandSpaces.includes(prop.spaceId)) {
+      return sum + prop.totalCityRefund;
+    } else {
+      const buildingSum = prop.availableBuildings.reduce((bSum, b) => {
+        if (selectedBuildings.includes(`${prop.spaceId}:${b.type}`)) {
+          return bSum + b.refund;
+        }
+        return bSum;
+      }, 0);
+      return sum + buildingSum;
+    }
   }, 0);
+
+  // Generate sale plans
+  const salePlans: PropertySalePlan[] = ownedProperties
+    .map(prop => {
+      const isLandSold = selectedLandSpaces.includes(prop.spaceId);
+      if (isLandSold) {
+        return {
+          spaceId: prop.spaceId,
+          sellLand: true,
+          soldBuildings: prop.availableBuildings.map(b => b.type),
+          refundAmount: prop.totalCityRefund
+        };
+      }
+
+      const soldB = prop.availableBuildings.filter(b => 
+        selectedBuildings.includes(`${prop.spaceId}:${b.type}`)
+      );
+
+      if (soldB.length > 0) {
+        const refund = soldB.reduce((s, b) => s + b.refund, 0);
+        return {
+          spaceId: prop.spaceId,
+          sellLand: false,
+          soldBuildings: soldB.map(b => b.type),
+          refundAmount: refund
+        };
+      }
+
+      return null;
+    })
+    .filter((plan): plan is PropertySalePlan => plan !== null);
 
   // Since debtAmount is the deficit, total recovered money must be >= debtAmount to cover the gap
   const canAffordWithSell = totalRecoveredMoney >= debtAmount;
   const remainingCashAfterSale = (payer.money + totalRecoveredMoney) - fullRequiredAmount;
 
-  const toggleSelectProperty = (spaceId: number) => {
-    setSelectedSellSpaces(prev => 
-      prev.includes(spaceId) ? prev.filter(id => id !== spaceId) : [...prev, spaceId]
-    );
-  };
+  // Total counts for user overview
+  const totalSoldLandsCount = salePlans.filter(p => p.sellLand).length;
+  const totalSoldBuildingsCount = salePlans.reduce((sum, p) => sum + (p.sellLand ? 0 : p.soldBuildings.length), 0);
 
   const handleConfirmAction = () => {
     if (selectedAction === 'loan' && canTakeLoan) {
-      // Loan amount is exactly the deficit needed: debtAmount
       onTakeLoan(debtAmount);
     } else if (selectedAction === 'sell') {
-      if (canAffordWithSell) {
-        onSellProperties(selectedSellSpaces, totalRecoveredMoney);
+      if (canAffordWithSell && salePlans.length > 0) {
+        onSellProperties(salePlans, totalRecoveredMoney);
       }
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in select-none">
       <motion.div
         initial={{ scale: 0.85, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.85, opacity: 0 }}
-        className="w-full max-w-lg bg-gradient-to-b from-[#240808] via-[#1a0a1c] to-slate-950 rounded-3xl border-2 border-rose-500/70 shadow-[0_0_50px_rgba(244,63,94,0.45)] overflow-hidden text-slate-100 flex flex-col max-h-[92vh]"
+        className="w-full max-w-xl bg-gradient-to-b from-[#240808] via-[#1a0a1c] to-slate-950 rounded-3xl border-2 border-rose-500/70 shadow-[0_0_50px_rgba(244,63,94,0.45)] overflow-hidden text-slate-100 flex flex-col max-h-[92vh]"
       >
         {/* Header */}
         <div className="bg-gradient-to-r from-rose-800 via-red-600 to-rose-900 p-4 sm:p-5 flex items-center justify-between text-white shadow-md border-b border-rose-400/30">
@@ -128,7 +257,7 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
         </div>
 
         {/* Status Breakdown */}
-        <div className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
+        <div className="p-4 sm:p-5 space-y-3 overflow-y-auto flex-1">
           <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-3">
             <div>
               <div className="text-[11px] text-slate-400 font-semibold">발생 사유</div>
@@ -151,10 +280,11 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
             </div>
           </div>
 
-          {/* Action Tabs: [1. 대출하기 (부채 없을 시 재대출 가능)] vs [2. 땅 & 건물 판매] */}
+          {/* Action Tabs: [1. 대출하기] vs [2. 땅 & 건물 개별 매각] */}
           <div className="grid grid-cols-2 gap-2.5">
             {/* Option 1: Loan */}
             <button
+              id="emergency-loan-tab-btn"
               type="button"
               disabled={!canTakeLoan}
               onClick={() => setSelectedAction('loan')}
@@ -180,9 +310,9 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
                 <div className="font-bold text-sm text-slate-100">긴급 구제 대출</div>
                 <div className="text-[11px] text-slate-400 mt-1 leading-snug">
                   {canTakeLoan ? (
-                    <span>부족한 <strong className="text-yellow-300 font-num">{debtAmount}만 원</strong>을 빚으로 대출받아 즉시 완납합니다.</span>
+                    <span>부족한 <strong className="text-yellow-300 font-num">{debtAmount}만 원</strong>을 대출받아 즉시 완납합니다.</span>
                   ) : (
-                    <span className="text-rose-300/90">갚지 않은 빚({payer.debt}만 원)이 있어 추가 대출 불가 (상환 시 재이용 가능)</span>
+                    <span className="text-rose-300/90">갚지 않은 빚({payer.debt}만 원)이 있어 추가 대출 불가</span>
                   )}
                 </div>
               </div>
@@ -194,8 +324,9 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
               )}
             </button>
 
-            {/* Option 2: Sell Land & Buildings */}
+            {/* Option 2: Sell Land & Buildings Separately */}
             <button
+              id="emergency-sell-tab-btn"
               type="button"
               disabled={ownedProperties.length === 0}
               onClick={() => setSelectedAction('sell')}
@@ -216,74 +347,190 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
                     보유 도시 {ownedProperties.length}개
                   </span>
                 </div>
-                <div className="font-bold text-sm text-slate-100">부동산 매각</div>
+                <div className="font-bold text-sm text-slate-100">땅 / 건물 선택 매각</div>
                 <div className="text-[11px] text-slate-400 mt-1 leading-snug">
-                  소유 도시와 건물을 매각하여 부족금을 마련합니다.
+                  별장, 빌딩, 호텔, 땅을 원하는 대로 골라 매각합니다.
                 </div>
               </div>
 
               <div className="mt-2 text-[11.5px] font-bold text-amber-300 font-num">
-                {ownedProperties.length > 0 ? `선택: +${totalRecoveredMoney}만 원` : '매각 가능한 도시 없음'}
+                {ownedProperties.length > 0 ? `선택 확보: +${totalRecoveredMoney}만 원` : '매각 가능한 도시 없음'}
               </div>
             </button>
           </div>
 
-          {/* Sub-view: When Sell is selected, show property selector */}
+          {/* Sub-view: When Sell is selected, show property selector with granular building choices */}
           {selectedAction === 'sell' && (
-            <div className="space-y-2 pt-1">
-              <div className="flex items-center justify-between text-xs text-slate-300">
-                <span className="font-bold">매각할 도시 선택 ({selectedSellSpaces.length}개 선택됨)</span>
-                <span className="font-num font-bold text-amber-300">
-                  확보 금액: {totalRecoveredMoney}만 원 / 필요 부족금: {debtAmount}만 원
-                </span>
+            <div className="space-y-3 pt-1">
+              {/* Header Status of Sale */}
+              <div className="p-2.5 rounded-xl bg-slate-900/95 border border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-300">매각 확보액:</span>
+                  <span className="font-num font-black text-amber-300 text-sm">
+                    +{totalRecoveredMoney}만 원
+                  </span>
+                  <span className="text-slate-500 text-[11px]">/ 필요 {debtAmount}만 원</span>
+                </div>
+
+                <div className="text-[11px] text-slate-400 font-medium">
+                  {totalSoldLandsCount > 0 && <span className="text-rose-300 mr-1.5">대지 {totalSoldLandsCount}개</span>}
+                  {totalSoldBuildingsCount > 0 && <span className="text-amber-300">건물 {totalSoldBuildingsCount}개</span>}
+                  {totalSoldLandsCount === 0 && totalSoldBuildingsCount === 0 && (
+                    <span className="text-slate-500">매각할 항목을 선택하세요</span>
+                  )}
+                </div>
               </div>
 
+              {canAffordWithSell && (totalSoldLandsCount > 0 || totalSoldBuildingsCount > 0) && (
+                <div className="p-2.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-xs text-emerald-200 flex items-center justify-between shadow-[0_0_15px_rgba(16,185,129,0.15)]">
+                  <span className="font-semibold">✅ 완납 가능! 지불 후 잔여 현금:</span>
+                  <span className="font-black text-amber-300 font-num text-sm">+{remainingCashAfterSale}만 원</span>
+                </div>
+              )}
+
               {ownedProperties.length === 0 ? (
-                <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-center text-xs text-slate-400">
+                <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 text-center text-xs text-slate-400">
                   매각할 수 있는 소유 도시가 없습니다.
                 </div>
               ) : (
-                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                  {ownedProperties.map(({ spaceId, space, cell, sellPrice }) => {
-                    const isSelected = selectedSellSpaces.includes(spaceId);
+                <div className="space-y-2.5 max-h-[46vh] overflow-y-auto pr-1">
+                  {ownedProperties.map(prop => {
+                    const isLandSelected = selectedLandSpaces.includes(prop.spaceId);
+                    const selectedBuildingsOnThisCity = prop.availableBuildings.filter(b => 
+                      selectedBuildings.includes(`${prop.spaceId}:${b.type}`)
+                    );
+                    const hasAnySelection = isLandSelected || selectedBuildingsOnThisCity.length > 0;
+
                     return (
                       <div
-                        key={spaceId}
-                        onClick={() => toggleSelectProperty(spaceId)}
-                        className={`p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-amber-500/20 border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.2)] text-amber-100'
-                            : 'bg-slate-900/90 border-slate-800 text-slate-300 hover:border-slate-700'
+                        key={prop.spaceId}
+                        className={`p-3 rounded-2xl border transition-all ${
+                          isLandSelected
+                            ? 'bg-rose-950/30 border-rose-500/70 shadow-[0_0_15px_rgba(244,63,94,0.15)]'
+                            : hasAnySelection
+                            ? 'bg-amber-950/30 border-amber-400/80 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+                            : 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
                         }`}
                       >
-                        <div className="flex items-center gap-2.5">
-                          <CountryFlag spaceId={spaceId} size="sm" />
+                        {/* Card Header: Flag, City Name, Total Asset Value, Current Status Badge */}
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+                          <div className="flex items-center gap-2.5">
+                            <CountryFlag spaceId={prop.spaceId} size="md" />
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-sm text-slate-100">
+                                  {prop.space?.name || `도시 #${prop.spaceId}`}
+                                </span>
+                                {prop.cell.buildings.isLandmark && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30">
+                                    👑 랜드마크
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-slate-400 mt-0.5">
+                                대지 기본가: <span className="font-num text-slate-300 font-semibold">{prop.landPrice}만 원</span>
+                                {' • '}
+                                도시 총자산: <span className="font-num text-amber-300 font-semibold">{prop.totalCityRefund}만 원</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Selection status badge */}
                           <div>
-                            <div className="font-bold text-xs flex items-center gap-1.5">
-                              <span>{space?.name || `도시 #${spaceId}`}</span>
-                              {cell.buildings.isLandmark && <span className="text-[10px] text-amber-400 font-bold">👑 랜드마크</span>}
-                            </div>
-                            <div className="text-[10.5px] text-slate-400 font-num">
-                              매각 환급가: <strong className="text-amber-300">{sellPrice}만 원</strong>
-                            </div>
+                            {isLandSelected ? (
+                              <span className="text-[10.5px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-bold border border-rose-500/40">
+                                ⚠️ 도시 전체 매각 (+{prop.totalCityRefund}만)
+                              </span>
+                            ) : selectedBuildingsOnThisCity.length > 0 ? (
+                              <span className="text-[10.5px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/40">
+                                ✨ 건물 {selectedBuildingsOnThisCity.length}개 매각 (대지 유지)
+                              </span>
+                            ) : (
+                              <span className="text-[10.5px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
+                                보유 유지
+                              </span>
+                            )}
                           </div>
                         </div>
 
-                        <div className={`w-5 h-5 rounded-lg flex items-center justify-center border ${
-                          isSelected ? 'bg-amber-500 border-amber-300 text-slate-950 font-bold' : 'border-slate-700'
-                        }`}>
-                          {isSelected && <Check className="w-3.5 h-3.5" />}
+                        {/* Selectable Items: Buildings & Land */}
+                        <div className="mt-2.5 space-y-2">
+                          {/* Individual Building Choices (Villa, Building, Hotel, Landmark) */}
+                          {prop.availableBuildings.length > 0 && (
+                            <div>
+                              <div className="text-[10.5px] font-bold text-slate-400 mb-1.5 flex items-center justify-between">
+                                <span>건물 개별 매각 (대지 소유권 유지)</span>
+                                <span className="text-[10px] text-slate-500">원하는 건물만 선택 매각</span>
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                                {prop.availableBuildings.map(b => {
+                                  const isBSelected = selectedBuildings.includes(`${prop.spaceId}:${b.type}`);
+                                  return (
+                                    <button
+                                      key={b.type}
+                                      type="button"
+                                      onClick={() => toggleBuilding(prop.spaceId, b.type)}
+                                      className={`p-2 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                                        isBSelected
+                                          ? 'bg-amber-500/25 border-amber-400 text-amber-100 shadow-[0_0_10px_rgba(245,158,11,0.25)] ring-1 ring-amber-400/60'
+                                          : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-bold text-xs flex items-center gap-1">
+                                          <span>{b.icon}</span>
+                                          <span>{b.name}</span>
+                                        </span>
+                                        <div className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] ${
+                                          isBSelected ? 'bg-amber-400 border-amber-300 text-slate-950 font-bold' : 'border-slate-700'
+                                        }`}>
+                                          {isBSelected && '✓'}
+                                        </div>
+                                      </div>
+                                      <div className="mt-1 flex items-center justify-between text-[11px]">
+                                        <span className="text-slate-400 text-[10px]">환급</span>
+                                        <span className="font-num font-bold text-amber-300">+{b.refund}만</span>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Land (대지) Selling Option */}
+                          <div className="pt-0.5">
+                            <button
+                              type="button"
+                              onClick={() => toggleLand(prop.spaceId)}
+                              className={`w-full p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
+                                isLandSelected
+                                  ? 'bg-rose-950/50 border-rose-400 text-rose-100 ring-1 ring-rose-400/50 shadow-[0_0_10px_rgba(244,63,94,0.2)]'
+                                  : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] ${
+                                  isLandSelected ? 'bg-rose-500 border-rose-300 text-white font-bold' : 'border-slate-700'
+                                }`}>
+                                  {isLandSelected && '✓'}
+                                </div>
+                                <span className="font-bold text-xs">
+                                  ⛳ {prop.availableBuildings.length > 0 ? '대지 및 도시 전체 매각' : '대지(토지) 매각'}
+                                </span>
+                                <span className="text-[10.5px] text-slate-500">
+                                  (도시 소유권 반납)
+                                </span>
+                              </div>
+                              <div className="font-num font-bold text-xs text-rose-300">
+                                +{prop.totalCityRefund}만 원
+                              </div>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
                   })}
-                </div>
-              )}
-
-              {canAffordWithSell && selectedSellSpaces.length > 0 && (
-                <div className="p-2.5 rounded-xl bg-emerald-950/60 border border-emerald-500/30 text-xs text-emerald-200 flex items-center justify-between">
-                  <span>✅ 완납 가능! 지불 후 잔여 현금:</span>
-                  <span className="font-black text-amber-300 font-num text-sm">+{remainingCashAfterSale}만 원</span>
                 </div>
               )}
             </div>
@@ -313,6 +560,8 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
         <div className="p-4 sm:p-5 bg-slate-950 border-t border-slate-800 flex gap-2.5">
           {/* Bankrupt Button */}
           <button
+            id="emergency-bankrupt-btn"
+            type="button"
             onClick={onBankrupt}
             className="py-3 px-3 sm:px-4 rounded-xl bg-slate-900 hover:bg-rose-950 border border-rose-900/60 text-rose-400 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer"
             title="모든 구제를 포기하고 즉시 파산합니다"
@@ -323,14 +572,16 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
 
           {/* Action Confirm Button */}
           <button
+            id="emergency-confirm-action-btn"
+            type="button"
             onClick={handleConfirmAction}
             disabled={
               selectedAction === null ||
               (selectedAction === 'loan' && !canTakeLoan) ||
-              (selectedAction === 'sell' && !canAffordWithSell)
+              (selectedAction === 'sell' && (!canAffordWithSell || salePlans.length === 0))
             }
             className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm sm:text-base flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              (selectedAction === 'loan' && canTakeLoan) || (selectedAction === 'sell' && canAffordWithSell)
+              (selectedAction === 'loan' && canTakeLoan) || (selectedAction === 'sell' && canAffordWithSell && salePlans.length > 0)
                 ? 'bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 shadow-lg shadow-emerald-600/30 border border-emerald-300'
                 : 'bg-slate-900 text-slate-500 border border-slate-800 cursor-not-allowed'
             }`}
@@ -345,8 +596,8 @@ export const EmergencyDebtModal: React.FC<EmergencyDebtModalProps> = ({
               <>
                 <Store className="w-4 h-4" />
                 <span>
-                  {canAffordWithSell
-                    ? `선택 도시 매각 후 ${fullRequiredAmount}만 원 완납`
+                  {canAffordWithSell && salePlans.length > 0
+                    ? `선택 항목 매각 후 ${fullRequiredAmount}만 원 완납 (+${totalRecoveredMoney}만 확보)`
                     : `매각액 부족 (+${totalRecoveredMoney}/${debtAmount}만 원)`}
                 </span>
               </>

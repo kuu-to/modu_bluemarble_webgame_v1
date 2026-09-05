@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { SpaceData, CellState, Player } from '../types';
+import { SpaceData, CellState, Player, ForceSellTargetBuilding } from '../types';
 import { CountryFlag, CITY_COUNTRY_CODES } from './CountryFlag';
 import { AlertCircle, Building2, Landmark, Check } from 'lucide-react';
 
-export type ForceSellTargetBuilding = 'villa' | 'building' | 'hotel' | 'landmark';
+export type { ForceSellTargetBuilding };
 
 interface ForceSellModalProps {
   mode: 'land' | 'building';

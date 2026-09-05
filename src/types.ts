@@ -56,6 +56,15 @@ export interface Player {
   hasUsedLoan: boolean; // 현재 대출 빚 보유 여부 (전액 상환 시 다시 false로 초기화되어 재대출 가능)
 }
 
+export type ForceSellTargetBuilding = 'villa' | 'building' | 'hotel' | 'landmark';
+
+export interface PropertySalePlan {
+  spaceId: number;
+  sellLand: boolean; // true if land is sold (surrenders ownership and clears all buildings)
+  soldBuildings: ForceSellTargetBuilding[]; // specific buildings dismantled if sellLand is false
+  refundAmount: number;
+}
+
 export interface GoldenKeyCard {
   id: number;
   title: string;

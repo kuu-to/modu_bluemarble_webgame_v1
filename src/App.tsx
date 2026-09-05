@@ -11,7 +11,8 @@ import {
   GameSpeed,
   SPEED_CONFIGS,
   BoardBroadcastMessage,
-  AirplaneColorId
+  AirplaneColorId,
+  PropertySalePlan
 } from './types';
 import { BOARD_SPACES, calculateToll, calculateSpaceValue } from './data/boardData';
 import { getRandomGoldenKey } from './data/goldenKeyData';
@@ -1839,20 +1840,42 @@ export default function App() {
   };
 
   // Property sale confirmation handler from EmergencyDebtModal
-  const handleConfirmSellProperties = (soldSpaceIds: number[], totalRecoveredMoney: number) => {
+  const handleConfirmSellProperties = (salePlans: PropertySalePlan[], totalRecoveredMoney: number) => {
     if (!debtModalData) return;
     const { payer, debtAmount, totalRequiredAmount, recipient, onSuccess } = debtModalData;
     const fullAmount = totalRequiredAmount || (payer.money + debtAmount);
 
-    // Reset sold cells
+    // Apply granular sale plans to cells
     setCells(prev => {
       const nextC = { ...prev };
-      soldSpaceIds.forEach(id => {
-        nextC[id] = {
-          owner: null,
-          buildings: { hasVilla: false, hasBuilding: false, hasHotel: false, isLandmark: false },
-          currentToll: 0
-        };
+      salePlans.forEach(plan => {
+        const space = BOARD_SPACES[plan.spaceId];
+        const cell = nextC[plan.spaceId];
+        if (!cell || !space) return;
+
+        if (plan.sellLand) {
+          // Surrender ownership of land and wipe all buildings
+          nextC[plan.spaceId] = {
+            owner: null,
+            buildings: { hasVilla: false, hasBuilding: false, hasHotel: false, isLandmark: false },
+            currentToll: 0
+          };
+        } else {
+          // Dismantle selected buildings; keep land ownership!
+          const updatedBuildings = { ...cell.buildings };
+          plan.soldBuildings.forEach(b => {
+            if (b === 'landmark') updatedBuildings.isLandmark = false;
+            if (b === 'hotel') updatedBuildings.hasHotel = false;
+            if (b === 'building') updatedBuildings.hasBuilding = false;
+            if (b === 'villa') updatedBuildings.hasVilla = false;
+          });
+          const newToll = calculateToll(space, updatedBuildings);
+          nextC[plan.spaceId] = {
+            ...cell,
+            buildings: updatedBuildings,
+            currentToll: newToll
+          };
+        }
       });
       return nextC;
     });
@@ -1875,15 +1898,29 @@ export default function App() {
     } : null;
 
     soundManager.playCashGain();
-    addLog(payer.id, `🏬 ${payer.name}가 소유 도시 ${soldSpaceIds.length}개를 매각하여 +${totalRecoveredMoney}만 원을 확보하고 전액 완납했습니다.`, 'event');
+
+    // Summary description for logs & broadcast
+    const soldLands = salePlans.filter(p => p.sellLand);
+    const soldBuildingsCount = salePlans.reduce((sum, p) => sum + (p.sellLand ? 0 : p.soldBuildings.length), 0);
+
+    const detailSummaryParts: string[] = [];
+    if (soldLands.length > 0) {
+      detailSummaryParts.push(`대지 ${soldLands.length}개(${soldLands.map(p => BOARD_SPACES[p.spaceId]?.name || '').filter(Boolean).join(', ')})`);
+    }
+    if (soldBuildingsCount > 0) {
+      detailSummaryParts.push(`건물 ${soldBuildingsCount}개`);
+    }
+    const saleSummaryText = detailSummaryParts.join(' 및 ') || '부동산';
+
+    addLog(payer.id, `🏬 ${payer.name}가 [${saleSummaryText}]을(를) 매각하여 +${totalRecoveredMoney}만 원을 확보하고 전액 완납했습니다.`, 'event');
     triggerBroadcast({
       category: 'purchase',
       playerId: payer.id,
       playerName: payer.name,
       playerColor: payer.color,
       isAI: payer.isAI,
-      title: `🏬 [소유 도시 ${soldSpaceIds.length}개 긴급 매각]`,
-      detail: `매각 환급금 ${totalRecoveredMoney}만 원으로 부족금을 마련하여 전액 완납했습니다.`,
+      title: `🏬 [부동산 긴급 매각] (+${totalRecoveredMoney}만 원)`,
+      detail: `${saleSummaryText} 매각 환급금 ${totalRecoveredMoney}만 원으로 부족금을 마련하여 전액 완납했습니다.`,
       badge: `매각 +${totalRecoveredMoney}만`,
       badgeColor: 'amber'
     });
