@@ -105,7 +105,12 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
             <button
               type="button"
               onClick={onOpenIslandModal}
-              className="px-2 py-0.5 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-black text-[10.5px] shadow-sm flex items-center gap-1 cursor-pointer"
+              disabled={disabled || isRolling || isTumbling}
+              className={`px-2 py-0.5 rounded-lg text-white font-black text-[10.5px] shadow-sm flex items-center gap-1 transition-all ${
+                disabled || isRolling || isTumbling
+                  ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
+                  : 'bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 cursor-pointer'
+              }`}
             >
               <Compass className="w-3 h-3" />
               <span>탈출 옵션 {hasIslandEscapeCard > 0 ? `(카드 ${hasIslandEscapeCard}장)` : ''}</span>
@@ -205,6 +210,29 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
             <Rocket className="w-5 h-5 text-purple-200" />
             <span>우주여행 하기 (WARP)</span>
           </button>
+        ) : isTrappedInIsland ? (
+          <button
+            id="island-escape-action-button"
+            type="button"
+            onClick={onOpenIslandModal}
+            disabled={disabled || isRolling || isTumbling}
+            className={`w-full py-2.5 sm:py-3 px-4 rounded-xl font-display text-sm sm:text-base font-black flex items-center justify-center gap-2 transition-all transform duration-150 ${
+              disabled || isRolling || isTumbling
+                ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                : 'bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 hover:from-purple-600 hover:to-indigo-600 text-white shadow-lg shadow-purple-900/40 hover:scale-[1.02] active:scale-[0.98] cursor-pointer border border-purple-400'
+            }`}
+          >
+            <Compass className="w-5 h-5 text-purple-200" />
+            <span>
+              {isTumbling
+                ? '주사위 굴리는 중...'
+                : isRolling
+                ? '탈출 이동 중...'
+                : disabled
+                ? '무인도 조난 중 (탈출 옵션 대기 중...)'
+                : '무인도 탈출 작전 선택하기'}
+            </span>
+          </button>
         ) : (
           <button
             id="roll-dice-button"
@@ -214,8 +242,6 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
             className={`w-full py-2.5 sm:py-3 px-4 rounded-xl font-display text-sm sm:text-base font-black flex items-center justify-center gap-2 transition-all transform duration-150 ${
               disabled || isRolling
                 ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
-                : isTrappedInIsland
-                ? 'bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600 hover:from-emerald-500 hover:to-teal-400 text-slate-950 shadow-lg shadow-emerald-500/30 hover:scale-[1.02] active:scale-[0.98] cursor-pointer border border-emerald-300'
                 : 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 shadow-lg shadow-orange-500/30 hover:scale-[1.02] active:scale-[0.98] cursor-pointer border border-yellow-300'
             }`}
           >
@@ -225,8 +251,6 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
                 ? '주사위 굴리는 중...'
                 : isRolling
                 ? '이동 중...'
-                : isTrappedInIsland
-                ? '더블 탈출 주사위 굴리기 (ROLL)'
                 : '주사위 굴리기 (ROLL)'}
             </span>
           </button>

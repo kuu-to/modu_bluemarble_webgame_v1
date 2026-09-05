@@ -32,6 +32,7 @@ import { EmergencyDebtModal } from './components/EmergencyDebtModal';
 import { StartUpgradeModal, getUpgradeableCities } from './components/StartUpgradeModal';
 import { IslandModal } from './components/IslandModal';
 import { ForceSellModal, ForceSellTargetBuilding } from './components/ForceSellModal';
+import { Trophy } from 'lucide-react';
 
 const INITIAL_MONEY = 300; // 300만 원 initial cash
 const SALARY_AMOUNT = 20; // 20만 원 salary
@@ -111,6 +112,7 @@ export default function App() {
     onSuccess: (updatedPayer: Player, updatedRecipient: Player | null) => void;
   } | null>(null);
   const [gameOverData, setGameOverData] = useState<GameOverResult | null>(null);
+  const [showGameOverModal, setShowGameOverModal] = useState<boolean>(false);
 
   // Reference trackers for rock-solid concurrency and race condition prevention
   const turnSeqRef = useRef<number>(1);
@@ -121,6 +123,7 @@ export default function App() {
   const isTurnBusyRef = useRef<boolean>(false);
   const doubleCountRef = useRef<number>(0);
   const rolledDoubleRef = useRef<boolean>(false);
+  const gameOverDataRef = useRef<GameOverResult | null>(null);
 
   // Synchronize refs
   useEffect(() => {
@@ -231,12 +234,18 @@ export default function App() {
 
     const winner = sorted[0];
     soundManager.playVictory();
-    setGameOverData({
+    const result: GameOverResult = {
       winner,
       rankings: sorted,
       reason: `⏱️ 제한 시간 종료! 총 자산(땅+건물+현금-빚) 최고 보유자 승리!`
-    });
+    };
+    setGameOverData(result);
+    gameOverDataRef.current = result;
+    setShowGameOverModal(true);
     setActiveModal('game_over');
+    setIsTurnBusy(false);
+    setIsRolling(false);
+    setIsTumbling(false);
     triggerBroadcast({
       category: 'turn',
       playerId: winner.id,
@@ -329,11 +338,19 @@ export default function App() {
 
   // Switch Turn handler
   const endTurn = (rolledDouble: boolean = false, fromTurnSeq?: number) => {
+    if (gameOverDataRef.current) {
+      return; // Game has finished with a winner; do not advance turns or clear modals
+    }
     if (fromTurnSeq !== undefined && fromTurnSeq !== turnSeqRef.current) {
       return; // Obsolete callback from a past turn sequence
     }
 
-    if (rolledDouble) {
+    const activePlayer = playersRef.current[activePlayerIndexRef.current];
+    // If active player is currently trapped in the island, NEVER grant double bonus turn!
+    const isTrappedInIsland = activePlayer ? activePlayer.islandTurnsLeft > 0 : false;
+    const canContinueDouble = rolledDouble && !isTrappedInIsland;
+
+    if (canContinueDouble) {
       rolledDoubleRef.current = true;
       const currentSeq = ++turnSeqRef.current;
       soundManager.playTurnSwitch();
@@ -345,7 +362,6 @@ export default function App() {
       setIsTumbling(false);
       setActiveModal(null);
 
-      const activePlayer = playersRef.current[activePlayerIndexRef.current];
       if (activePlayer) {
         triggerBroadcast({
           category: 'turn',
@@ -412,19 +428,25 @@ export default function App() {
           playerColor: nextPlayer.color,
           isAI: nextPlayer.isAI,
           title: `🏁 [${nextPlayer.name}] 님의 차례입니다`,
-          detail: nextPlayer.isAI ? '컴퓨터 AI가 주사위 굴림 및 부동산 전략을 연산 중입니다...' : '🎲 주사위 굴리기 버튼을 눌러 이동하세요!',
-          badge: nextPlayer.isAI ? 'AI 턴' : '플레이어 턴',
-          badgeColor: nextPlayer.isAI ? 'purple' : 'emerald'
+          detail: nextPlayer.isAI
+            ? '컴퓨터 AI가 주사위 굴림 및 부동산 전략을 연산 중입니다...'
+            : nextPlayer.islandTurnsLeft > 0
+            ? '🏝️ 무인도 조난 탈출 작전 선택이 필요합니다.'
+            : '🎲 주사위 굴리기 버튼을 눌러 이동하세요!',
+          badge: nextPlayer.isAI ? 'AI 턴' : nextPlayer.islandTurnsLeft > 0 ? '무인도 조난' : '플레이어 턴',
+          badgeColor: nextPlayer.isAI ? 'purple' : nextPlayer.islandTurnsLeft > 0 ? 'indigo' : 'emerald'
         });
       }
 
-      // If next player is trapped in Island, open Island Escape Action Modal
+      // If next player is trapped in Island, lock interaction until Island Escape Action Modal opens
       if (!nextPlayer.isAI && nextPlayer.islandTurnsLeft > 0) {
+        setIsTurnBusy(true);
         registerTimer(() => {
           if (turnSeqRef.current === currentSeq) {
             setActiveModal('island');
+            setIsTurnBusy(false);
           }
-        }, speedConfig.bannerDurationMs + 100, currentSeq);
+        }, speedConfig.bannerDurationMs, currentSeq);
       }
     }
 
@@ -433,7 +455,10 @@ export default function App() {
     setTurnBannerVisible(true);
     registerTimer(() => setTurnBannerVisible(false), speedConfig.bannerDurationMs, currentSeq);
 
-    setIsTurnBusy(false);
+    // Only release isTurnBusy immediately if not trapped in island
+    if (!(!nextPlayer.isAI && nextPlayer.islandTurnsLeft > 0)) {
+      setIsTurnBusy(false);
+    }
   };
 
   // Check Game Over & Bankruptcy
@@ -486,12 +511,18 @@ export default function App() {
       });
 
       soundManager.playVictory();
-      setGameOverData({
+      const result: GameOverResult = {
         winner,
         rankings,
         reason: updated.length > 2 ? '최후의 1인 생존 완승!' : `${winner.name}의 독점 완승!`
-      });
+      };
+      setGameOverData(result);
+      gameOverDataRef.current = result;
+      setShowGameOverModal(true);
       setActiveModal('game_over');
+      setIsTurnBusy(false);
+      setIsRolling(false);
+      setIsTumbling(false);
       return true;
     }
 
@@ -560,7 +591,11 @@ export default function App() {
         playersRef.current = next;
         return updateTotalAssets(next, cellsRef.current);
       });
+      // Trapped in island: completely reset all double states so turn switches to opponent
       rolledDoubleRef.current = false;
+      setDoubleCount(0);
+      doubleCountRef.current = 0;
+      setIsDouble(false);
       registerTimer(() => endTurn(false, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
       return;
     }
@@ -1043,11 +1078,14 @@ export default function App() {
             });
             setPlayers(prev => {
               const next = prev.map(p => p.id === activePlayer.id ? { ...p, pos: 10, islandTurnsLeft: 3 } : p);
+              playersRef.current = next;
               return updateTotalAssets(next, cellsRef.current);
             });
             setIsRolling(false);
             setDoubleCount(0);
             doubleCountRef.current = 0;
+            setIsDouble(false);
+            rolledDoubleRef.current = false;
             registerTimer(() => endTurn(false, currentTurnSeq), speedConfig.modalActionDelayMs, currentTurnSeq);
             return;
           }
@@ -1086,7 +1124,12 @@ export default function App() {
                 playersRef.current = next;
                 return next;
               });
-              moveTokenSteps(activePlayer, total, currentTurnSeq, rolledDouble);
+              // Island escape via double moves player out, but does not grant another turn
+              setDoubleCount(0);
+              doubleCountRef.current = 0;
+              setIsDouble(false);
+              rolledDoubleRef.current = false;
+              moveTokenSteps(activePlayer, total, currentTurnSeq, false);
             } else {
               soundManager.playTollPenalty();
               addLog(activePlayer.id, `🏝️ 탈출 실패 (남은 턴: ${activePlayer.islandTurnsLeft - 1})`, 'event');
@@ -1495,6 +1538,13 @@ export default function App() {
         return updateTotalAssets(next, cellsRef.current);
       });
 
+      if (gameOverDataRef.current) {
+        setIsTurnBusy(false);
+        setIsRolling(false);
+        setIsTumbling(false);
+        return;
+      }
+
       setActiveModal(null);
       if (onCompleted && updatedPayerRes) {
         onCompleted(updatedPayerRes, updatedRecipientRes);
@@ -1665,6 +1715,12 @@ export default function App() {
             checkGameOver(next);
             return updateTotalAssets(next, cellsRef.current);
           });
+          if (gameOverDataRef.current) {
+            setIsTurnBusy(false);
+            setIsRolling(false);
+            setIsTumbling(false);
+            return;
+          }
           setActiveModal(null);
           registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
           return;
@@ -1847,6 +1903,13 @@ export default function App() {
       checkGameOver(next);
       return updateTotalAssets(next, cellsRef.current);
     });
+
+    if (gameOverDataRef.current) {
+      setIsTurnBusy(false);
+      setIsRolling(false);
+      setIsTumbling(false);
+      return;
+    }
 
     const currentSeq = turnSeqRef.current;
     registerTimer(() => endTurn(false, currentSeq), speedConfig.modalActionDelayMs, currentSeq);
@@ -2291,7 +2354,16 @@ export default function App() {
       case 'move_island': {
         setActiveModal(null);
         soundManager.playTollPenalty();
-        setPlayers(prev => prev.map(p => p.id === activePlayer.id ? { ...p, pos: 10, islandTurnsLeft: 3 } : p));
+        setPlayers(prev => {
+          const next = prev.map(p => p.id === activePlayer.id ? { ...p, pos: 10, islandTurnsLeft: 3 } : p);
+          playersRef.current = next;
+          return updateTotalAssets(next, cellsRef.current);
+        });
+        // Trapped in island: completely reset all double states so turn switches to opponent
+        setDoubleCount(0);
+        doubleCountRef.current = 0;
+        setIsDouble(false);
+        rolledDoubleRef.current = false;
         addLog(activePlayer.id, `🏝️ 폭풍우로 무인도로 강제 이송되었습니다!`, 'golden_key');
         triggerBroadcast({
           category: 'island',
@@ -2304,7 +2376,7 @@ export default function App() {
           badge: '무인도 3턴',
           badgeColor: 'indigo'
         });
-        registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+        registerTimer(() => endTurn(false, seq), speedConfig.modalActionDelayMs, seq);
         return;
       }
     }
@@ -2377,6 +2449,8 @@ export default function App() {
     setTurnCount(1);
     setSocialFund(50);
     setGameOverData(null);
+    gameOverDataRef.current = null;
+    setShowGameOverModal(false);
     setActiveModal(null);
     setLastDice(null);
     setIsDouble(false);
@@ -2424,6 +2498,8 @@ export default function App() {
     setTurnCount(1);
     setSocialFund(50);
     setGameOverData(null);
+    gameOverDataRef.current = null;
+    setShowGameOverModal(false);
     setActiveModal(null);
     setLastDice(null);
     setIsDouble(false);
@@ -2485,6 +2561,8 @@ export default function App() {
     setTurnCount(1);
     setSocialFund(50);
     setGameOverData(null);
+    gameOverDataRef.current = null;
+    setShowGameOverModal(false);
     setActiveModal(null);
     setLastDice(null);
     setIsDouble(false);
@@ -2514,6 +2592,8 @@ export default function App() {
     setIsTurnBusy(false);
     setActiveModal(null);
     setGameOverData(null);
+    gameOverDataRef.current = null;
+    setShowGameOverModal(false);
     setDebtModalData(null);
     setGameState('setup');
   };
@@ -2547,6 +2627,21 @@ export default function App() {
         visible={turnBannerVisible}
       />
 
+      {/* Floating Victory Modal Re-open Banner if closed by user */}
+      {gameOverData && !showGameOverModal && (
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-40 animate-pulse hover:animate-none">
+          <button
+            id="reopen-game-over-modal-btn"
+            type="button"
+            onClick={() => setShowGameOverModal(true)}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs sm:text-sm shadow-[0_0_30px_rgba(251,191,36,0.6)] flex items-center gap-2 border-2 border-amber-200 cursor-pointer transition-all hover:scale-105"
+          >
+            <Trophy className="w-4 h-4 text-slate-950" />
+            <span>🏆 [{gameOverData.winner.name} 승리!] 최종 결과창 다시 열기</span>
+          </button>
+        </div>
+      )}
+
       {/* Main Responsive Grid Container */}
       <div className="w-full max-w-[1440px] mx-auto flex flex-col lg:flex-row items-center lg:items-center justify-center gap-3 sm:gap-6 z-10">
         {/* Left / Center Area: Board */}
@@ -2560,7 +2655,7 @@ export default function App() {
             onSpaceTravel={handleStartSpaceTravel}
             isRolling={isRolling}
             isTumbling={isTumbling}
-            isDiceDisabled={isTurnBusy || isRolling || isTumbling || activePlayer.isAI || activeModal !== null}
+            isDiceDisabled={isTurnBusy || isRolling || isTumbling || activePlayer.isAI || activeModal !== null || showGameOverModal}
             currentDice={currentDice}
             isDouble={isDouble}
             highlightedCellId={activePlayer.pos}
@@ -2679,13 +2774,20 @@ export default function App() {
       )}
 
       {/* 6. Game Over / Victory Modal */}
-      {activeModal === 'game_over' && gameOverData && (
+      {showGameOverModal && gameOverData && (
         <GameOverModal
           winner={gameOverData.winner}
           rankings={gameOverData.rankings}
           reason={gameOverData.reason}
           onRestart={resetGame}
           onExitToLobby={handleExitToLobby}
+          onClose={() => {
+            setShowGameOverModal(false);
+            setActiveModal(null);
+            setIsTurnBusy(false);
+            setIsRolling(false);
+            setIsTumbling(false);
+          }}
         />
       )}
 

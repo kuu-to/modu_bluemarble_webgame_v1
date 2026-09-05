@@ -242,6 +242,8 @@ export const Board: React.FC<BoardProps> = ({
                   : '🤖 컴퓨터 AI 차례'
                 : activePlayer.spaceTravelQueued
                 ? '🛸 [우주여행 하기]를 누르세요!'
+                : activePlayer.islandTurnsLeft > 0
+                ? '🏝️ 무인도 탈출 작전을 선택하세요!'
                 : '🎲 주사위를 굴려주세요!'}
             </span>
           </div>

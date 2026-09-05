@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Player } from '../types';
 import { AirplanePiece } from './AirplanePiece';
-import { Trophy, Crown, RotateCcw, Home } from 'lucide-react';
+import { Trophy, Crown, RotateCcw, Home, X, Eye } from 'lucide-react';
 
 interface GameOverModalProps {
   winner: Player;
@@ -10,6 +10,7 @@ interface GameOverModalProps {
   reason: string;
   onRestart: () => void;
   onExitToLobby?: () => void;
+  onClose?: () => void;
 }
 
 export const GameOverModal: React.FC<GameOverModalProps> = ({
@@ -17,7 +18,8 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   rankings,
   reason,
   onRestart,
-  onExitToLobby
+  onExitToLobby,
+  onClose
 }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-lg">
@@ -25,8 +27,21 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         initial={{ scale: 0.7, opacity: 0, y: 40 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.7, opacity: 0 }}
-        className="w-full max-w-lg bg-gradient-to-b from-[#1c1809] via-[#0d1633] to-slate-950 rounded-3xl border-2 border-amber-400 shadow-[0_0_80px_rgba(251,191,36,0.4)] overflow-hidden text-slate-100"
+        className="w-full max-w-lg bg-gradient-to-b from-[#1c1809] via-[#0d1633] to-slate-950 rounded-3xl border-2 border-amber-400 shadow-[0_0_80px_rgba(251,191,36,0.4)] overflow-hidden text-slate-100 relative"
       >
+        {/* Close 'X' Button at top-right */}
+        {onClose && (
+          <button
+            id="game-over-modal-close-x-btn"
+            type="button"
+            onClick={onClose}
+            className="absolute top-4 right-4 z-20 p-2 rounded-full bg-slate-950/60 hover:bg-slate-900 text-amber-300 hover:text-white border border-amber-400/40 hover:border-amber-300 transition-all cursor-pointer shadow-lg"
+            title="창 닫기 (보드 보기)"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
+
         {/* Victory Ribbon Header */}
         <div className="bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 p-5 sm:p-6 text-slate-950 text-center relative overflow-hidden">
           <motion.div
@@ -113,23 +128,38 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
 
         {/* Buttons */}
         <div className="p-4 sm:p-5 bg-slate-950/90 border-t border-slate-800 flex flex-col sm:flex-row gap-2.5">
+          {onClose && (
+            <button
+              id="game-over-close-btn"
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 font-bold text-xs sm:text-sm border border-slate-700 hover:border-slate-500 cursor-pointer flex items-center justify-center gap-1.5 transition-all"
+            >
+              <Eye className="w-4 h-4 text-amber-400" />
+              <span>창 닫기 (보드 보기)</span>
+            </button>
+          )}
+
           {onExitToLobby && (
             <button
+              id="game-over-lobby-btn"
+              type="button"
               onClick={onExitToLobby}
-              className="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm border border-slate-700 cursor-pointer flex items-center justify-center gap-1.5 transition-all"
+              className="flex-1 py-3 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs sm:text-sm border border-slate-700 cursor-pointer flex items-center justify-center gap-1.5 transition-all"
             >
               <Home className="w-4 h-4" />
-              <span>시작 화면으로 이동</span>
+              <span>시작 화면</span>
             </button>
           )}
 
           <button
             id="restart-game-button"
+            type="button"
             onClick={onRestart}
-            className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-bold text-sm shadow-lg border border-amber-200 cursor-pointer flex items-center justify-center gap-1.5 transition-all"
+            className="flex-1 py-3 px-3 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs sm:text-sm shadow-lg border border-amber-200 cursor-pointer flex items-center justify-center gap-1.5 transition-all"
           >
             <RotateCcw className="w-4 h-4" />
-            <span>이 설정으로 다시하기</span>
+            <span>다시하기</span>
           </button>
         </div>
       </motion.div>
