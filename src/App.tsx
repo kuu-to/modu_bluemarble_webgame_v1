@@ -23,7 +23,6 @@ import { Sidebar } from './components/Sidebar';
 import { PurchaseModal } from './components/PurchaseModal';
 import { TollModal } from './components/TollModal';
 import { GoldenKeyModal } from './components/GoldenKeyModal';
-import { SpaceTravelModal } from './components/SpaceTravelModal';
 import { TurnTransitionBanner } from './components/TurnTransitionBanner';
 import { GameOverModal } from './components/GameOverModal';
 import { ModeSelectModal } from './components/ModeSelectModal';
@@ -32,6 +31,7 @@ import { GameSetupScreen } from './components/GameSetupScreen';
 import { EmergencyDebtModal } from './components/EmergencyDebtModal';
 import { StartUpgradeModal, getUpgradeableCities } from './components/StartUpgradeModal';
 import { IslandModal } from './components/IslandModal';
+import { ForceSellModal, ForceSellTargetBuilding } from './components/ForceSellModal';
 
 const INITIAL_MONEY = 300; // 300만 원 initial cash
 const SALARY_AMOUNT = 20; // 20만 원 salary
@@ -91,7 +91,8 @@ export default function App() {
   const [boardBroadcast, setBoardBroadcast] = useState<BoardBroadcastMessage | null>(null);
 
   // Active modal controls
-  const [activeModal, setActiveModal] = useState<null | 'purchase' | 'toll' | 'golden_key' | 'space_travel' | 'game_over' | 'debt' | 'start_upgrade' | 'island'>(null);
+  const [activeModal, setActiveModal] = useState<null | 'purchase' | 'toll' | 'golden_key' | 'space_travel' | 'game_over' | 'debt' | 'start_upgrade' | 'island' | 'force_sell_land' | 'force_sell_building'>(null);
+  const [selectedWarpSpace, setSelectedWarpSpace] = useState<SpaceData | null>(null);
   const [currentGoldenKey, setCurrentGoldenKey] = useState<GoldenKeyCard | null>(null);
   const [goldenKeyContext, setGoldenKeyContext] = useState<{
     card: GoldenKeyCard;
@@ -773,6 +774,12 @@ export default function App() {
             const takeoverCost = spaceVal * 2;
             const canTakeover = !cellState.buildings.isLandmark && decideAITakeover(validatedPlayer, space, takeoverCost);
 
+            // If AI has free pass cards and toll is expensive or cannot afford
+            if ((validatedPlayer.freePassCards || 0) > 0 && (toll >= 20 || validatedPlayer.money < toll)) {
+              handleUseFreePass(space, opponent, validatedPlayer, currentTurnSeq);
+              return;
+            }
+
             if (canTakeover && validatedPlayer.money >= (toll + takeoverCost)) {
               // AI Takeover!
               executeTakeover(space, opponent, validatedPlayer, toll, takeoverCost, currentTurnSeq);
@@ -1116,7 +1123,19 @@ export default function App() {
     if (!activePlayer || activePlayer.isBankrupt || isTurnBusy || isRolling) return;
 
     soundManager.playGoldenKey();
+    setSelectedWarpSpace(null);
     setActiveModal('space_travel');
+    triggerBroadcast({
+      category: 'space_travel',
+      playerId: activePlayer.id,
+      playerName: activePlayer.name,
+      playerColor: activePlayer.color,
+      isAI: activePlayer.isAI,
+      title: '🛸 우주여행 목적지 선택',
+      detail: '보드판에서 이동하고 싶은 땅을 클릭하세요.',
+      badge: '목적지 선택',
+      badgeColor: 'purple'
+    });
   };
 
   // Warp directly to destination (Space travel)
@@ -1128,6 +1147,7 @@ export default function App() {
     setIsTurnBusy(true);
     setIsRolling(false);
     setIsTumbling(false);
+    setSelectedWarpSpace(null);
     setActiveModal(null);
 
     const destSpace = BOARD_SPACES[destPos];
@@ -1893,6 +1913,169 @@ export default function App() {
     registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
   };
 
+  // Use Free Pass Card on opponent's land
+  const handleUseFreePass = (space: SpaceData, owner: Player, payer: Player, currentTurnSeq?: number) => {
+    const seq = currentTurnSeq || turnSeqRef.current;
+    if ((payer.freePassCards || 0) <= 0) return;
+
+    soundManager.playCashGain();
+
+    setPlayers(prev => {
+      const next = prev.map(p => {
+        if (p.id === payer.id) {
+          return {
+            ...p,
+            pos: space.id,
+            freePassCards: Math.max(0, (p.freePassCards || 0) - 1)
+          };
+        }
+        return p;
+      });
+      playersRef.current = next;
+      return next;
+    });
+
+    addLog(
+      payer.id,
+      `🎫 ${payer.name}가 [상대 땅 1회 무료 통과권]을 사용하여 ${owner.name}의 [${space.name}] 통행료를 전액 면제받고 무료 통과했습니다!`,
+      'golden_key'
+    );
+
+    triggerBroadcast({
+      category: 'golden_key',
+      playerId: payer.id,
+      playerName: payer.name,
+      playerColor: payer.color,
+      isAI: payer.isAI,
+      title: `🎫 [무료 통과권 사용] 통행료 전액 면제!`,
+      detail: `${payer.name}님이 무료 통과권을 사용하여 [${space.name}]을(를) 통행료 없이 무사히 통과했습니다.`,
+      badge: '무료 통과 0원',
+      badgeColor: 'purple'
+    });
+
+    setActiveModal(null);
+    setCurrentTollData(null);
+    registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+  };
+
+  // Handle confirming force sell land
+  const handleConfirmForceSellLand = (
+    spaceId: number,
+    refundAmount: number,
+    playerOverride?: Player,
+    currentTurnSeq?: number
+  ) => {
+    const seq = currentTurnSeq || turnSeqRef.current;
+    const player = playerOverride || playersRef.current[activePlayerIndexRef.current];
+    const space = BOARD_SPACES[spaceId];
+    if (!player || !space) return;
+
+    soundManager.playCashGain();
+    showFloatingEffect(player.id, refundAmount, true);
+
+    setCells(prev => ({
+      ...prev,
+      [spaceId]: {
+        owner: null,
+        buildings: { hasVilla: false, hasBuilding: false, hasHotel: false, isLandmark: false },
+        currentToll: 0
+      }
+    }));
+
+    setPlayers(prev => {
+      const next = prev.map(p => p.id === player.id ? { ...p, money: p.money + refundAmount } : p);
+      return updateTotalAssets(next, {
+        ...cellsRef.current,
+        [spaceId]: { owner: null, buildings: { hasVilla: false, hasBuilding: false, hasHotel: false, isLandmark: false }, currentToll: 0 }
+      });
+    });
+
+    addLog(player.id, `🏚️ ${player.name}가 [${space.name}] 토지를 강제 매각하여 +${refundAmount}만 원을 환급받았습니다.`, 'golden_key');
+    triggerBroadcast({
+      category: 'golden_key',
+      playerId: player.id,
+      playerName: player.name,
+      playerColor: player.color,
+      isAI: player.isAI,
+      title: `🏚️ [소유 토지 강제 매각] [${space.name}] (+${refundAmount}만)`,
+      detail: `${player.name}님이 [${space.name}] 토지를 은행에 매각하고 ${refundAmount}만 원을 환급받았습니다.`,
+      badge: `매각 +${refundAmount}만`,
+      badgeColor: 'amber'
+    });
+
+    setActiveModal(null);
+    registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+  };
+
+  // Handle confirming force sell building
+  const handleConfirmForceSellBuilding = (
+    spaceId: number,
+    buildingType: ForceSellTargetBuilding,
+    refundAmount: number,
+    playerOverride?: Player,
+    currentTurnSeq?: number
+  ) => {
+    const seq = currentTurnSeq || turnSeqRef.current;
+    const player = playerOverride || playersRef.current[activePlayerIndexRef.current];
+    const space = BOARD_SPACES[spaceId];
+    const cell = cellsRef.current[spaceId];
+    if (!player || !space || !cell) return;
+
+    soundManager.playCashGain();
+    showFloatingEffect(player.id, refundAmount, true);
+
+    const updatedBuildings = { ...cell.buildings };
+    let bName = '건물';
+    if (buildingType === 'landmark') {
+      updatedBuildings.isLandmark = false;
+      bName = '👑 랜드마크';
+    } else if (buildingType === 'hotel') {
+      updatedBuildings.hasHotel = false;
+      bName = '🏨 호텔';
+    } else if (buildingType === 'building') {
+      updatedBuildings.hasBuilding = false;
+      bName = '🏢 빌딩';
+    } else if (buildingType === 'villa') {
+      updatedBuildings.hasVilla = false;
+      bName = '🏡 별장';
+    }
+
+    const calculatedToll = calculateToll(space, updatedBuildings);
+
+    setCells(prev => ({
+      ...prev,
+      [spaceId]: {
+        ...cell,
+        buildings: updatedBuildings,
+        currentToll: calculatedToll
+      }
+    }));
+
+    setPlayers(prev => {
+      const next = prev.map(p => p.id === player.id ? { ...p, money: p.money + refundAmount } : p);
+      return updateTotalAssets(next, {
+        ...cellsRef.current,
+        [spaceId]: { ...cell, buildings: updatedBuildings, currentToll: calculatedToll }
+      });
+    });
+
+    addLog(player.id, `🏗️ ${player.name}가 [${space.name}]의 ${bName}을(를) 강제 철거 매각하여 +${refundAmount}만 원을 환급받았습니다.`, 'golden_key');
+    triggerBroadcast({
+      category: 'golden_key',
+      playerId: player.id,
+      playerName: player.name,
+      playerColor: player.color,
+      isAI: player.isAI,
+      title: `🏗️ [건물 강제 매각] [${space.name}] ${bName} 철거 (+${refundAmount}만)`,
+      detail: `${player.name}님이 건물을 매각하여 환급을 받았습니다. (새 통행료: ${calculatedToll}만 원)`,
+      badge: `철거 +${refundAmount}만`,
+      badgeColor: 'amber'
+    });
+
+    setActiveModal(null);
+    registerTimer(() => endTurn(isDouble, seq), speedConfig.modalActionDelayMs, seq);
+  };
+
   // Apply Golden Key Effect
   const applyGoldenKey = (currentTurnSeq?: number) => {
     const seq = currentTurnSeq || turnSeqRef.current;
@@ -1902,6 +2085,107 @@ export default function App() {
     const card = currentGoldenKey;
 
     switch (card.type) {
+      case 'free_pass_card': {
+        soundManager.playCashGain();
+        setPlayers(prev => prev.map(p => p.id === activePlayer.id ? { ...p, freePassCards: (p.freePassCards || 0) + 1 } : p));
+        addLog(activePlayer.id, `🎫 [상대 땅 1회 무료 통과권] 1장을 획득하여 보관했습니다! (보유: ${(activePlayer.freePassCards || 0) + 1}장)`, 'golden_key');
+        triggerBroadcast({
+          category: 'golden_key',
+          playerId: activePlayer.id,
+          playerName: activePlayer.name,
+          playerColor: activePlayer.color,
+          isAI: activePlayer.isAI,
+          title: `🎫 [무료 통과권] 보관함 저장 완료!`,
+          detail: '상대방 땅에 걸렸을 때 통행료를 내지 않고 1회 무료로 통과할 수 있습니다.',
+          badge: '무료통과권 +1',
+          badgeColor: 'purple'
+        });
+        break;
+      }
+      case 'force_sell_land': {
+        const ownedLands = BOARD_SPACES.filter(s => cellsRef.current[s.id]?.owner === activePlayer.id);
+        if (ownedLands.length === 0) {
+          addLog(activePlayer.id, `🏚️ ${activePlayer.name}는 소유한 땅이 없어 [소유 토지 강제 매각]이 무효(패스) 처리되었습니다.`, 'golden_key');
+          triggerBroadcast({
+            category: 'golden_key',
+            playerId: activePlayer.id,
+            playerName: activePlayer.name,
+            playerColor: activePlayer.color,
+            isAI: activePlayer.isAI,
+            title: `🏚️ [소유 토지 강제 매각] 소유 땅 없음`,
+            detail: `${activePlayer.name}님이 소유한 땅이 없어 카드가 그대로 효력 없이 지나갑니다.`,
+            badge: '매각 패스',
+            badgeColor: 'slate'
+          });
+          break;
+        }
+
+        if (activePlayer.isAI) {
+          const targetLand = [...ownedLands].sort((a, b) => {
+            const valA = calculateSpaceValue(a, cellsRef.current[a.id]?.buildings || { hasVilla: false, hasBuilding: false, hasHotel: false, isLandmark: false });
+            const valB = calculateSpaceValue(b, cellsRef.current[b.id]?.buildings || { hasVilla: false, hasBuilding: false, hasHotel: false, isLandmark: false });
+            return valA - valB;
+          })[0];
+          const refund = calculateSpaceValue(targetLand, cellsRef.current[targetLand.id]?.buildings || { hasVilla: false, hasBuilding: false, hasHotel: false, isLandmark: false });
+          setActiveModal(null);
+          handleConfirmForceSellLand(targetLand.id, refund, activePlayer, seq);
+          return;
+        } else {
+          setActiveModal('force_sell_land');
+          return;
+        }
+      }
+      case 'force_sell_building': {
+        const landsWithBuildings = BOARD_SPACES.filter(s => {
+          const c = cellsRef.current[s.id];
+          return c?.owner === activePlayer.id && (c.buildings.hasVilla || c.buildings.hasBuilding || c.buildings.hasHotel || c.buildings.isLandmark);
+        });
+
+        if (landsWithBuildings.length === 0) {
+          addLog(activePlayer.id, `🏗️ ${activePlayer.name}는 소유한 건물이 없어 [소유 건물 강제 매각]이 무효(패스) 처리되었습니다.`, 'golden_key');
+          triggerBroadcast({
+            category: 'golden_key',
+            playerId: activePlayer.id,
+            playerName: activePlayer.name,
+            playerColor: activePlayer.color,
+            isAI: activePlayer.isAI,
+            title: `🏗️ [소유 건물 강제 매각] 소유 건물 없음`,
+            detail: `${activePlayer.name}님이 소유한 건물이 없어 카드가 그대로 효력 없이 지나갑니다.`,
+            badge: '철거 패스',
+            badgeColor: 'slate'
+          });
+          break;
+        }
+
+        if (activePlayer.isAI) {
+          const targetSpace = landsWithBuildings[0];
+          const cell = cellsRef.current[targetSpace.id];
+          let bType: ForceSellTargetBuilding = 'villa';
+          let refund = targetSpace.villaPrice || Math.round((targetSpace.price || 0) * 0.5);
+
+          if (cell.buildings.isLandmark) {
+            bType = 'landmark';
+            refund = targetSpace.landmarkPrice || Math.round((targetSpace.price || 0) * 1.5);
+          } else if (cell.buildings.hasVilla) {
+            bType = 'villa';
+            refund = targetSpace.villaPrice || Math.round((targetSpace.price || 0) * 0.5);
+          } else if (cell.buildings.hasBuilding) {
+            bType = 'building';
+            refund = targetSpace.buildingPrice || (targetSpace.price || 0);
+          } else if (cell.buildings.hasHotel) {
+            bType = 'hotel';
+            refund = targetSpace.hotelPrice || Math.round((targetSpace.price || 0) * 1.5);
+          }
+
+          setActiveModal(null);
+          handleConfirmForceSellBuilding(targetSpace.id, bType, refund, activePlayer, seq);
+          return;
+        } else {
+          setActiveModal('force_sell_building');
+          return;
+        }
+      }
+
       case 'money_gain': {
         const gain = card.amount || 20;
         soundManager.playCashGain();
@@ -2275,12 +2559,23 @@ export default function App() {
             isDouble={isDouble}
             highlightedCellId={activePlayer.pos}
             isDestinationSelectionActive={activeModal === 'space_travel'}
+            selectedDestinationSpace={selectedWarpSpace}
+            onConfirmDestination={(destPos) => {
+              setSelectedWarpSpace(null);
+              warpToDestination(destPos);
+            }}
+            onCancelDestination={() => {
+              setSelectedWarpSpace(null);
+            }}
             gameSpeed={currentSpeed}
             broadcast={boardBroadcast}
             onOpenIslandModal={() => setActiveModal('island')}
             onCellClick={(id) => {
               if (activeModal === 'space_travel') {
-                warpToDestination(id);
+                if (id !== 20) {
+                  soundManager.playTilePass();
+                  setSelectedWarpSpace(BOARD_SPACES[id]);
+                }
               }
             }}
           />
@@ -2349,6 +2644,7 @@ export default function App() {
           owner={currentTollData.owner}
           onPayToll={() => executePayToll(currentTollData.space, currentTollData.owner, { ...currentTollData.payer, pos: currentTollData.space.id }, (cells[currentTollData.space.id] || { currentToll: 0 }).currentToll)}
           onTakeover={(takeoverCost) => executeTakeover(currentTollData.space, currentTollData.owner, { ...currentTollData.payer, pos: currentTollData.space.id }, (cells[currentTollData.space.id] || { currentToll: 0 }).currentToll, takeoverCost)}
+          onUseFreePass={() => handleUseFreePass(currentTollData.space, currentTollData.owner, currentTollData.payer)}
         />
       )}
 
@@ -2373,16 +2669,6 @@ export default function App() {
         <GoldenKeyModal
           card={currentGoldenKey}
           onConfirm={() => applyGoldenKey()}
-        />
-      )}
-
-      {/* 5. Space Travel Modal */}
-      {activeModal === 'space_travel' && (
-        <SpaceTravelModal
-          spaces={BOARD_SPACES}
-          cells={cells}
-          player={activePlayer}
-          onSelectDestination={(destPos) => warpToDestination(destPos)}
         />
       )}
 
@@ -2432,6 +2718,30 @@ export default function App() {
           onPayEscapeFee={() => handlePayIslandBail(activePlayer)}
           onTryDouble={handleTryIslandDouble}
           onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {/* 9. Force Sell Land Modal */}
+      {activeModal === 'force_sell_land' && !activePlayer.isAI && (
+        <ForceSellModal
+          mode="land"
+          player={activePlayer}
+          spaces={BOARD_SPACES}
+          cells={cells}
+          onConfirmSellLand={(spaceId, refund) => handleConfirmForceSellLand(spaceId, refund)}
+          onConfirmSellBuilding={() => {}}
+        />
+      )}
+
+      {/* 10. Force Sell Building Modal */}
+      {activeModal === 'force_sell_building' && !activePlayer.isAI && (
+        <ForceSellModal
+          mode="building"
+          player={activePlayer}
+          spaces={BOARD_SPACES}
+          cells={cells}
+          onConfirmSellLand={() => {}}
+          onConfirmSellBuilding={(spaceId, bType, refund) => handleConfirmForceSellBuilding(spaceId, bType, refund)}
         />
       )}
     </div>

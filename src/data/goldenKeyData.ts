@@ -125,6 +125,30 @@ export const GOLDEN_KEYS: GoldenKeyCard[] = [
     icon: "💝",
     type: "donation",
     amount: 20
+  },
+  {
+    id: 15,
+    title: "소유 토지 강제 매각",
+    subtitle: "부동산 구조조정",
+    description: "보유한 토지 중 하나를 즉시 선택하여 은행에 강제 매각합니다. 매각 대금을 돌려받습니다. (소유 토지가 없을 경우 패스)",
+    icon: "🏚️",
+    type: "force_sell_land"
+  },
+  {
+    id: 16,
+    title: "소유 건물 강제 철거 매각",
+    subtitle: "건축물 구조조정",
+    description: "보유한 건물(빌라/빌딩/호텔/랜드마크) 중 하나를 선택하여 강제 매각 철거합니다. 건설 비용을 환급받습니다. (소유 건물이 없을 경우 패스)",
+    icon: "🏗️",
+    type: "force_sell_building"
+  },
+  {
+    id: 17,
+    title: "상대 땅 1회 무료 통과권",
+    subtitle: "우대 프리패스",
+    description: "상대방의 땅에 도착했을 때 통행료를 내지 않고 1회 무료로 무사 통과할 수 있는 우대권입니다. (인벤토리 보관)",
+    icon: "🎫",
+    type: "free_pass_card"
   }
 ];
 

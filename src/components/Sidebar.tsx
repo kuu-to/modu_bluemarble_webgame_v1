@@ -270,6 +270,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <strong className="text-purple-200 font-num">{p.hasIslandEscapeCard}장</strong>
                       </span>
                     )}
+                    {(p.freePassCards || 0) > 0 && (
+                      <span className="text-amber-300 font-bold px-1.5 py-0.2 rounded bg-amber-950/80 border border-amber-500/40 text-[9.5px] flex items-center gap-0.5" title="상대 땅 1회 무료 통과권 (인벤토리 보관 중)">
+                        <span>🎫 무료통과</span>
+                        <strong className="text-amber-200 font-num">{p.freePassCards}장</strong>
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

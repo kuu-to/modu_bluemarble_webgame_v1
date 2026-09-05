@@ -23,6 +23,10 @@ interface TileCellProps {
   highlighted?: boolean;
   onClick?: () => void;
   isDestinationSelectable?: boolean;
+  isSpaceTravelMode?: boolean;
+  isTravelHovered?: boolean;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
 export const TileCell: React.FC<TileCellProps> = ({
@@ -32,7 +36,11 @@ export const TileCell: React.FC<TileCellProps> = ({
   activePlayerId,
   highlighted,
   onClick,
-  isDestinationSelectable
+  isDestinationSelectable,
+  isSpaceTravelMode = false,
+  isTravelHovered = false,
+  onMouseEnter,
+  onMouseLeave
 }) => {
   const isCorner = space.type === 'start' || space.type === 'island' || space.type === 'space' || space.type === 'fund';
   const owner = cellState.owner !== null ? players[cellState.owner] : null;
@@ -88,7 +96,27 @@ export const TileCell: React.FC<TileCellProps> = ({
     borderStyle = 'border-amber-400 ring-2 ring-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.9)] z-20';
   }
 
-  if (isDestinationSelectable) {
+  // 🛸 Space travel destination selection mode (image2 styling: 전체 어두운 상태에서 마우스 커서 올린 타일만 밝게 강조)
+  if (isSpaceTravelMode) {
+    if (space.id === 20) {
+      // 우주정거장 본인 칸은 목적지에서 제외하여 어둡게 유지
+      borderStyle = 'border-slate-700/60';
+      bgStyle = 'opacity-30 brightness-[0.35]';
+    } else if (isTravelHovered) {
+      // 현재 마우스 올린(선택 중인) 타일: 원래 밝기 100% + 환한 흰색 테두리 및 빛무리 (image2의 상파울루)
+      borderStyle = 'border-2 border-white ring-2 ring-white/95 shadow-[0_0_22px_rgba(255,255,255,0.95)] z-40';
+      bgStyle = 'opacity-100 brightness-100 cursor-pointer';
+      customStyle = {
+        ...customStyle,
+        transform: 'scale(1.025)',
+        zIndex: 40,
+      };
+    } else {
+      // 그 외 타일들: 어두운 상태 (image2의 다른 타일들)
+      borderStyle = 'border-slate-600/40';
+      bgStyle = 'opacity-35 brightness-[0.45] cursor-pointer hover:opacity-100 hover:brightness-100';
+    }
+  } else if (isDestinationSelectable) {
     borderStyle = 'border-emerald-500 ring-2 ring-emerald-400 animate-pulse cursor-pointer hover:scale-105 z-30';
     bgStyle = 'bg-emerald-50 text-emerald-950';
   }
@@ -110,6 +138,8 @@ export const TileCell: React.FC<TileCellProps> = ({
     <div
       id={`cell-${space.id}`}
       onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       style={{
         gridRow: row,
         gridColumn: col,

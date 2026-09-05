@@ -117,6 +117,11 @@ class SoundEffects {
     osc.stop(now + 0.06);
   }
 
+  // Play tile pass / hover click sound
+  playTilePass() {
+    this.playStepHop();
+  }
+
   // Play building construction & landmark upgrade sound
   playBuildingBuild(isLandmark: boolean = false) {
     if (!this.enabled) return;

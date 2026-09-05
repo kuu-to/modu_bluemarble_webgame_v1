@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { SpaceData, CellState, Player, GameSpeed, BoardBroadcastMessage } from '../types';
 import { TileCell } from './TileCell';
 import { DiceRoller } from './DiceRoller';
@@ -20,6 +21,9 @@ interface BoardProps {
   highlightedCellId: number | null;
   onCellClick?: (spaceId: number) => void;
   isDestinationSelectionActive?: boolean;
+  selectedDestinationSpace?: SpaceData | null;
+  onConfirmDestination?: (spaceId: number) => void;
+  onCancelDestination?: () => void;
   gameSpeed?: GameSpeed;
   broadcast?: BoardBroadcastMessage | null;
   onOpenIslandModal?: () => void;
@@ -39,12 +43,16 @@ export const Board: React.FC<BoardProps> = ({
   isDouble,
   highlightedCellId,
   onCellClick,
-  isDestinationSelectionActive,
+  isDestinationSelectionActive = false,
+  selectedDestinationSpace = null,
+  onConfirmDestination,
+  onCancelDestination,
   gameSpeed = 'normal',
   broadcast = null,
   onOpenIslandModal
 }) => {
   const activePlayer = players[activePlayerIndex] || players[0];
+  const [hoveredSpaceId, setHoveredSpaceId] = useState<number | null>(null);
 
   return (
     <div className="relative w-full aspect-square max-w-[720px] lg:max-w-[760px] xl:max-w-[800px] 2xl:max-w-[840px] max-h-[min(92vh,840px)] mx-auto p-1.5 sm:p-2.5 rounded-2xl bg-gradient-to-b from-[#1b3815] via-[#244b1c] to-[#162f11] border-4 border-[#3e6b2f] shadow-[0_10px_40px_rgba(0,0,0,0.6),inset_0_0_20px_rgba(0,0,0,0.5)] select-none">
@@ -71,6 +79,13 @@ export const Board: React.FC<BoardProps> = ({
             currentToll: 0
           };
 
+          // 우주여행 목적지 선택 모드 시 hover 또는 기선택된 타일 여부
+          const isTargetHovered = isDestinationSelectionActive && (
+            selectedDestinationSpace
+              ? selectedDestinationSpace.id === space.id
+              : hoveredSpaceId === space.id
+          );
+
           return (
             <TileCell
               key={space.id}
@@ -79,8 +94,28 @@ export const Board: React.FC<BoardProps> = ({
               players={players}
               activePlayerId={activePlayer.id}
               highlighted={highlightedCellId === space.id}
-              isDestinationSelectable={isDestinationSelectionActive && (space.type === 'city' || space.type === 'start')}
-              onClick={() => onCellClick && onCellClick(space.id)}
+              isDestinationSelectable={isDestinationSelectionActive && space.id !== 20}
+              isSpaceTravelMode={isDestinationSelectionActive}
+              isTravelHovered={isTargetHovered}
+              onMouseEnter={() => {
+                if (isDestinationSelectionActive && !selectedDestinationSpace && space.id !== 20) {
+                  setHoveredSpaceId(space.id);
+                }
+              }}
+              onMouseLeave={() => {
+                if (isDestinationSelectionActive && !selectedDestinationSpace) {
+                  setHoveredSpaceId(null);
+                }
+              }}
+              onClick={() => {
+                if (isDestinationSelectionActive) {
+                  if (space.id !== 20) {
+                    onCellClick && onCellClick(space.id);
+                  }
+                } else {
+                  onCellClick && onCellClick(space.id);
+                }
+              }}
             />
           );
         })}
@@ -93,6 +128,11 @@ export const Board: React.FC<BoardProps> = ({
           }}
           className="relative flex flex-col items-center justify-between p-1.5 sm:p-3 bg-[#8ebf63] rounded-lg border-2 border-[#689843] overflow-hidden shadow-inner"
         >
+          {/* 🛸 우주여행 선택 모드 시 중앙 필드 어두운 오버레이 (image2 효과) */}
+          {isDestinationSelectionActive && (
+            <div className="absolute inset-0 bg-black/60 z-20 pointer-events-none transition-opacity duration-300" />
+          )}
+
           {/* 부루마블 특유의 접이식 보드 종이 질감 & 세로 접힘선 */}
           <div className="absolute inset-0 bg-[radial-gradient(#97cc6b_1px,transparent_1px)] [background-size:16px_16px] opacity-40 pointer-events-none" />
           <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-black/10 shadow-xs pointer-events-none" />
@@ -207,6 +247,48 @@ export const Board: React.FC<BoardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* 🛸 7. 우주여행 목적지 선택 확인 모달 (image3.png 완벽 일치) 🛸 */}
+      <AnimatePresence>
+        {isDestinationSelectionActive && selectedDestinationSpace && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center p-4 pointer-events-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.15 }}
+              className="w-full max-w-[360px] sm:max-w-[440px] bg-[#182333]/92 backdrop-blur-md rounded-2xl sm:rounded-3xl border border-slate-700/60 shadow-[0_20px_50px_rgba(0,0,0,0.7)] p-6 sm:p-9 flex flex-col items-center justify-center text-center"
+            >
+              <div className="text-white text-base sm:text-xl font-bold tracking-tight mb-6 sm:mb-8 select-none font-sans">
+                ‘{selectedDestinationSpace.name}’(으)로 이동하시겠습니까?
+              </div>
+
+              <div className="flex items-center justify-center gap-3 sm:gap-5 w-full">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onConfirmDestination && onConfirmDestination(selectedDestinationSpace.id);
+                  }}
+                  className="flex-1 max-w-[130px] py-2.5 sm:py-3 rounded-xl bg-[#4f83cc] hover:bg-[#3d71b8] active:scale-95 text-white font-bold text-base sm:text-lg shadow-md transition-all cursor-pointer"
+                >
+                  예
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCancelDestination && onCancelDestination();
+                  }}
+                  className="flex-1 max-w-[130px] py-2.5 sm:py-3 rounded-xl bg-[#4f83cc] hover:bg-[#3d71b8] active:scale-95 text-white font-bold text-base sm:text-lg shadow-md transition-all cursor-pointer whitespace-nowrap"
+                >
+                  다시 선택
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

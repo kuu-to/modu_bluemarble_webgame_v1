@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { SpaceData, CellState, Player } from '../types';
 import { calculateSpaceValue } from '../data/boardData';
-import { AlertTriangle, Coins, Building, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { AlertTriangle, Coins, Building, ArrowRight, ShieldCheck, Sparkles, Ticket } from 'lucide-react';
 import { CountryFlag, CITY_COUNTRY_CODES } from './CountryFlag';
 
 interface TollModalProps {
@@ -12,6 +12,8 @@ interface TollModalProps {
   owner: Player;
   onPayToll: () => void;
   onTakeover: (takeoverCost: number) => void;
+  onUseFreePass?: () => void;
+  onFreePassAndTakeover?: (takeoverCost: number) => void;
 }
 
 export const TollModal: React.FC<TollModalProps> = ({
@@ -20,15 +22,19 @@ export const TollModal: React.FC<TollModalProps> = ({
   payer,
   owner,
   onPayToll,
-  onTakeover
+  onTakeover,
+  onUseFreePass,
+  onFreePassAndTakeover
 }) => {
   const toll = cellState.currentToll;
   const isLandmark = cellState.buildings.isLandmark;
+  const hasFreePass = (payer.freePassCards || 0) > 0;
 
   // Takeover cost = 2x space value
   const spaceValue = calculateSpaceValue(space, cellState.buildings);
   const takeoverCost = spaceValue * 2;
   const canTakeover = !isLandmark && payer.money >= (toll + takeoverCost);
+  const canFreePassTakeover = !isLandmark && hasFreePass && payer.money >= takeoverCost;
   const canPayToll = payer.money >= toll;
 
   return (
@@ -85,6 +91,36 @@ export const TollModal: React.FC<TollModalProps> = ({
             <span>{payer.name} 보유 잔액: <strong className="text-amber-400 font-num">{payer.money}만 원</strong></span>
             <span>지불 후 잔액: <strong className={`font-num ${payer.money - toll < 0 ? 'text-red-500' : 'text-slate-200'}`}>{payer.money - toll}만 원</strong></span>
           </div>
+
+          {/* Free Pass Card (상대 땅 1회 무료 통과권) Banner */}
+          {hasFreePass && (
+            <div className="p-3.5 rounded-xl bg-gradient-to-r from-purple-950/70 via-indigo-950/60 to-purple-950/70 border-2 border-purple-500/60 flex items-center justify-between shadow-lg shadow-purple-900/20">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-purple-500/20 text-purple-300">
+                  <Ticket className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-purple-200">
+                    상대 땅 1회 무료 통과권 보유
+                  </div>
+                  <div className="text-[11px] text-purple-300/80 font-num">
+                    잔여: <strong>{payer.freePassCards}장</strong> (통행료 전액 면제)
+                  </div>
+                </div>
+              </div>
+
+              {onUseFreePass && (
+                <button
+                  type="button"
+                  onClick={onUseFreePass}
+                  className="py-2 px-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 active:scale-95 text-white font-display font-bold text-xs sm:text-sm shadow-md border border-purple-300 flex items-center gap-1 cursor-pointer transition-all"
+                >
+                  <Ticket className="w-4 h-4" />
+                  <span>통과권 사용 (0원)</span>
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Landmark Defense or Takeover Option */}
           {isLandmark ? (

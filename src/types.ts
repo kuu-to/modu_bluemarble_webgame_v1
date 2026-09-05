@@ -48,6 +48,7 @@ export interface Player {
   aiDifficulty?: 'easy' | 'normal' | 'hard';
   islandTurnsLeft: number; // 0 if free, >0 if stuck
   hasIslandEscapeCard: number;
+  freePassCards: number; // 상대 땅 1회 무료 통과권 보유 수량
   spaceTravelQueued: boolean;
   isBankrupt: boolean;
   ownedCityCount: number;
@@ -61,7 +62,7 @@ export interface GoldenKeyCard {
   subtitle: string;
   description: string;
   icon: string;
-  type: 'money_gain' | 'money_loss' | 'move_start' | 'move_island' | 'move_space' | 'escape_card' | 'toll_shield' | 'donation' | 'jackpot' | 'force_sell';
+  type: 'money_gain' | 'money_loss' | 'move_start' | 'move_island' | 'move_space' | 'escape_card' | 'toll_shield' | 'donation' | 'jackpot' | 'force_sell' | 'force_sell_land' | 'force_sell_building' | 'free_pass_card';
   amount?: number;
   targetPos?: number;
 }

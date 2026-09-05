@@ -114,6 +114,7 @@ export function createPlayersForMode(
       isAI,
       islandTurnsLeft: 0,
       hasIslandEscapeCard: 0,
+      freePassCards: 0,
       spaceTravelQueued: false,
       isBankrupt: false,
       ownedCityCount: 0,
